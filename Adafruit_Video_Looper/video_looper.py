@@ -12,6 +12,7 @@ import signal
 import time
 import pygame
 import threading
+import datetime
 
 from .alsa_config import parse_hw_device
 from .model import Playlist, Movie
@@ -104,6 +105,13 @@ class VideoLooper:
             self._keyboard_thread = threading.Thread(target=self._handle_keyboard_shortcuts, daemon=True)
             self._keyboard_thread.start()
 
+        # Scheduled play
+        self._clock = {
+            'hour'    : -1,
+            'minute': -1,
+            'second': -1
+        }
+
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
         if self._console_output:
@@ -132,7 +140,7 @@ class VideoLooper:
 
     def _is_number(self, s):
         try:
-            float(s) 
+            float(s)
             return True
         except ValueError:
             return False
@@ -151,10 +159,10 @@ class VideoLooper:
                         #raise RuntimeError('Playlist path {0} does not exist.'.format(playlist_path))
                 else:
                     paths = self._reader.search_paths()
-                    
+
                     if not paths:
                         return Playlist([])
-                    
+
                     for path in paths:
                         maybe_playlist_path = os.path.join(path, playlist_path)
                         if os.path.isfile(maybe_playlist_path):
@@ -209,7 +217,7 @@ class VideoLooper:
                     with open(alsa_hw_vol_file_path, 'r') as alsa_hw_vol_file:
                         alsa_hw_vol_string = alsa_hw_vol_file.readline()
                         self._alsa_hw_vol = alsa_hw_vol_string
-                    
+
             # Get the video volume from the file in the usb key
             if self._sound_vol_file:
                 sound_vol_file_path = '{0}/{1}'.format(path.rstrip('/'), self._sound_vol_file)
@@ -243,7 +251,7 @@ class VideoLooper:
         message if the on screen display is enabled.
         """
         # Print message to console with number of movies in playlist.
-        message = 'Found {0} movie{1}.'.format(playlist.length(), 
+        message = 'Found {0} movie{1}.'.format(playlist.length(),
             's' if playlist.length() >= 2 else '')
         self._print(message)
         # Do nothing else if the OSD is turned off.
@@ -326,7 +334,7 @@ class VideoLooper:
                 cmd.extend(('-c', str(self._alsa_hw_device[0])))
             cmd.extend(('set', self._alsa_hw_vol_control, '--', self._alsa_hw_vol))
             subprocess.check_call(cmd)
-            
+
     def _handle_keyboard_shortcuts(self):
         while self._running:
             event = pygame.event.wait()
@@ -347,6 +355,69 @@ class VideoLooper:
                         self._playbackStopped = True
                         self._player.stop(3)
 
+    #
+    # Scheduled play
+    #
+
+    def _ready_to_play(self, playlist):
+        """Are we scheduled to play?"""
+
+        # Only think about our next move if playlist is not playing anymore
+        if playlist.is_finished():
+
+            # What time is it?
+            now = datetime.datetime.now()
+
+            # Is at least a second passed since last time?
+            if now.second != self._clock['second']:
+
+                # Remember now
+                self._clock['hour'] = now.hour
+                self._clock['minute'] = now.minute
+                self._clock['second'] = now.second
+
+                # Verbose
+                self._print('[{:02d}:{:02d}:{:02d}]'.format(self._clock['hour'], self._clock['minute'], self._clock['second']))
+
+                # When is the next scheduled play?
+#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+                scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
+                scheduled = scheduled - now
+
+                countdown_total = int(scheduled.total_seconds())
+                countdown_minutes = (countdown_total % 3600) // 60
+                countdown_seconds = countdown_total % 60
+
+                # Schedule alarm!
+                if countdown_total == 1:
+                    playlist.reset()
+                    self._print('[Scheduled play starts]')
+
+                # Visual Countdown
+                if self._osd:
+                    # Prepare for showing
+                    if countdown_total >= 10:
+                        # Countdown format
+                        msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
+                        # Render
+                        label = self._render_text(msg, self._big_font)
+                        lw, lh = label.get_size()
+                        # Clear screen and draw text with line1 above line2 and all
+                        # centered horizontally and vertically.
+                        sw, sh = self._screen.get_size()
+                        self._screen.fill(self._bgcolor)
+                        self._screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
+                        pygame.display.update()
+                    # Clear screen
+                    else:
+                        self._blank_screen()
+
+        # We are ready if playlist is not finished
+        return not playlist.is_finished()
+
+    #
+    # Exec
+    #
 
     def run(self):
         """Main program loop.  Will never return!"""
@@ -357,9 +428,10 @@ class VideoLooper:
         movie = playlist.get_next(self._is_random)
         # Main loop to play videos in the playlist and listen for file changes.
         while self._running:
+            #
             # Load and play a new movie if nothing is playing.
             if not self._player.is_playing() and not self._playbackStopped:
-                if movie is not None: #just to avoid errors
+                if movie is not None and self._ready_to_play(playlist): #just to avoid errors
 
                     if movie.playcount >= movie.repeats:
                         movie.clear_playcount()
@@ -392,7 +464,7 @@ class VideoLooper:
             # and rebuild the playlist.
             if self._reader.is_changed() and not self._playbackStopped:
                 self._print("reader changed, stopping player")
-                self._player.stop(3)  # Up to 3 second delay waiting for old 
+                self._player.stop(3)  # Up to 3 second delay waiting for old
                                       # player to stop.
                 self._print("player stopped")
                 # Rebuild playlist and show countdown again (if OSD enabled).
@@ -404,7 +476,7 @@ class VideoLooper:
             # Give the CPU some time to do other tasks. low values increase "responsiveness to changes" and reduce the pause between files
             # but increase CPU usage
             # since keyboard commands are handled in a seperate thread this sleeptime mostly influences the pause between files
-                        
+
             time.sleep(0.002)
 
     def quit(self):

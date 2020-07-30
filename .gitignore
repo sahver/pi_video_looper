@@ -54,3 +54,8 @@ docs/_build/
 # PyBuilder
 target/
 .idea/
+
+# OSX
+.DS_Store
+._*
+*.swp

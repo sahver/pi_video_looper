@@ -1,6 +1,7 @@
 # Copyright 2015 Adafruit Industries.
 # Author: Tony DiCola
 # License: GNU GPLv2, see LICENSE.txt
+
 import random
 from typing import Optional
 
@@ -45,6 +46,8 @@ class Playlist:
         """Create a playlist from the provided list of movies."""
         self._movies = movies
         self._index = None
+        # Scheduled play
+        self._finished = True
 
     def get_next(self, is_random) -> Movie:
         """Get the next movie in the playlist. Will loop to start of playlist
@@ -62,11 +65,25 @@ class Playlist:
                 self._index = 0
             else:
                 self._index += 1
+
             # Wrap around to the start after finishing.
             if self._index >= self.length():
                 self._index = 0
 
+            # With this one we finished the playlist
+            if (self._index+1) == self.length():
+                self._finished = True
+                print('[Last movie in the playlist]')
+
         return self._movies[self._index]
+
+    def is_finished(self):
+        """Has playlist arrived to the end?"""
+        return self._finished
+
+    def reset(self):
+        """Reset finished status"""
+        self._finished = False
 
     def length(self):
         """Return the number of movies in the playlist."""
