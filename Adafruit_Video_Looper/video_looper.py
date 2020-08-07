@@ -361,8 +361,15 @@ class VideoLooper:
 
 
     # Print time
-    def _tick(self, msg = ''):
-      self._print('[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else ''))
+    def _time(self, msg = ''):
+
+        now = datetime.datetime.now()
+
+        self._clock['hour'] = now.hour
+        self._clock['minute'] = now.minute
+        self._clock['second'] = now.second
+
+        self._print('[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else ''))
 
     def _ready_to_play(self, playlist):
         """Are we scheduled to play?"""
@@ -381,11 +388,9 @@ class VideoLooper:
                 self._clock['minute'] = now.minute
                 self._clock['second'] = now.second
 
-                # Verbose
-                self._tick()
-
                 # When is the next scheduled play?
 #                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+#                scheduled = now.replace(minute=30, second=0)
                 scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
                 scheduled = scheduled - now
 
@@ -396,7 +401,11 @@ class VideoLooper:
                 # Schedule alarm!
                 if countdown_total == 1:
                     playlist.reset()
-                    self._tick('Scheduled play starts')
+                    self._time('Scheduled play starts')
+
+                # Show time
+                if countdown_total < 10 or not self._osd:
+                    self._time()
 
                 # Visual Countdown
                 if self._osd:
@@ -404,6 +413,7 @@ class VideoLooper:
                     if countdown_total >= 10:
                         # Countdown format
                         msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
+                        self._time(msg)
                         # Render
                         label = self._render_text(msg, self._big_font)
                         lw, lh = label.get_size()
@@ -461,7 +471,7 @@ class VideoLooper:
                         infotext = '(endless loop)'
 
                     # Start playing the first available movie.
-                    self._tick('Playing movie: {0} {1}'.format(movie, infotext))
+                    self._time('Playing movie: {0} {1}'.format(movie, infotext))
                     # todo: maybe clear screen to black so that background (image/color) is not visible for videos with a resolution that is < screen resolution
                     self._player.play(movie, loop=-1 if playlist.length()==1 else None, vol = self._sound_vol)
 
