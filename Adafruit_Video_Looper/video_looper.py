@@ -359,6 +359,11 @@ class VideoLooper:
     # Scheduled play
     #
 
+
+    # Print time
+    def _tick(self, msg = ''):
+      self._print('[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else ''))
+
     def _ready_to_play(self, playlist):
         """Are we scheduled to play?"""
 
@@ -377,7 +382,7 @@ class VideoLooper:
                 self._clock['second'] = now.second
 
                 # Verbose
-                self._print('[{:02d}:{:02d}:{:02d}]'.format(self._clock['hour'], self._clock['minute'], self._clock['second']))
+                self._tick()
 
                 # When is the next scheduled play?
 #                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
@@ -391,7 +396,7 @@ class VideoLooper:
                 # Schedule alarm!
                 if countdown_total == 1:
                     playlist.reset()
-                    self._print('[Scheduled play starts]')
+                    self._tick('Scheduled play starts')
 
                 # Visual Countdown
                 if self._osd:
@@ -456,7 +461,7 @@ class VideoLooper:
                         infotext = '(endless loop)'
 
                     # Start playing the first available movie.
-                    self._print('Playing movie: {0} {1}'.format(movie, infotext))
+                    self._tick('Playing movie: {0} {1}'.format(movie, infotext))
                     # todo: maybe clear screen to black so that background (image/color) is not visible for videos with a resolution that is < screen resolution
                     self._player.play(movie, loop=-1 if playlist.length()==1 else None, vol = self._sound_vol)
 
@@ -496,7 +501,7 @@ class VideoLooper:
 
 # Main entry point.
 if __name__ == '__main__':
-    print('Starting Adafruit Video Looper.')
+    print('Starting Adafruit Video Looper /w Scheduling mod')
     # Default config path to /boot.
     config_path = '/boot/video_looper.ini'
     # Override config path if provided as parameter.
