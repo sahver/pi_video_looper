@@ -390,7 +390,7 @@ class VideoLooper:
 
                 # When is the next scheduled play?
 #                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
-#                scheduled = now.replace(minute=10, second=0)
+#                scheduled = now.replace(minute=15, second=0)
                 scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
                 scheduled = scheduled - now
 
