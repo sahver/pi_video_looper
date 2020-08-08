@@ -385,7 +385,7 @@ class VideoLooper:
                 self._print()
 
             # Only think about our next move if playlist is not playing anymore
-            if playlist.is_finished():
+            elif not self._player.is_playing() and playlist.is_finished():
 
                 # When is the next scheduled play?
 
