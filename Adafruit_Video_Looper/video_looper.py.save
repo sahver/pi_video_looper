@@ -363,6 +363,13 @@ class VideoLooper:
 
     # Print time
     def _time(self, msg = ''):
+
+        now = datetime.datetime.now()
+
+        self._clock['hour'] = now.hour
+        self._clock['minute'] = now.minute
+        self._clock['second'] = now.second
+
         self._print('[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else ''))
 
     def _ready_to_play(self, playlist):
@@ -379,22 +386,13 @@ class VideoLooper:
             self._clock['minute'] = now.minute
             self._clock['second'] = now.second
 
-            # Feedback once in a minute while video is playing
-            if self._player.is_playing() and self._clock['second'] == 0:
-                self._time()
-
             # Only think about our next move if playlist is not playing anymore
             if playlist.is_finished():
 
                 # When is the next scheduled play?
-
-                # Start at every hour
-#                scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
-
-                # Testing
-                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
 #                scheduled = now.replace(minute=15, second=0)
-
+                scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
                 scheduled = scheduled - now
 
                 countdown_total = int(scheduled.total_seconds())
@@ -448,7 +446,7 @@ class VideoLooper:
         while self._running:
             #
             # Load and play a new movie if nothing is playing.
-            if self._ready_to_play(playlist) and not self._player.is_playing() and not self._playbackStopped:
+            if not self._player.is_playing() and not self._playbackStopped and self._ready_to_play(playlist):
                 if movie is not None: #just to avoid errors
 
                     if movie.playcount >= movie.repeats:
