@@ -106,6 +106,7 @@ class VideoLooper:
             self._keyboard_thread.start()
 
         # Scheduled play
+        self._countdown_starts_at = 10 # seconds
         self._clock = {
             'hour'    : -1,
             'minute': -1,
@@ -404,13 +405,13 @@ class VideoLooper:
                     self._time('Scheduled play starts')
 
                 # Show time
-                if countdown_total < 10 or not self._osd:
+                if countdown_total < self._countdown_starts_at or not self._osd:
                     self._time()
 
                 # Visual Countdown
                 if self._osd:
                     # Prepare for showing
-                    if countdown_total >= 10:
+                    if countdown_total >= self._countdown_starts_at:
                         # Countdown format
                         msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
                         self._time(msg)
