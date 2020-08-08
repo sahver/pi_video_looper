@@ -116,7 +116,8 @@ class VideoLooper:
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
         if self._console_output:
-            print(message)
+            #print(message)
+            self._time(message)
 
     def _load_player(self):
         """Load the configured video player and return an instance of it."""
@@ -389,10 +390,10 @@ class VideoLooper:
                 # When is the next scheduled play?
 
                 # Start at every hour
-#                scheduled = now.replace(hour=(self._clock['hour']+1), minute=0, second=0)
+                scheduled = now.replace(hour=((self._clock['hour']+1)%24), minute=0, second=0)
 
                 # Testing
-                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
 #                scheduled = now.replace(minute=15, second=0)
 
                 scheduled = scheduled - now
@@ -404,7 +405,7 @@ class VideoLooper:
                 # Schedule alarm!
                 if countdown_total == 1:
                     playlist.reset()
-                    self._time('Scheduled play starts')
+                    self._print('Scheduled play starts')
 
                 # Show time
                 if countdown_total < self._countdown_starts_at or not self._osd:
@@ -416,7 +417,7 @@ class VideoLooper:
                     if countdown_total >= self._countdown_starts_at:
                         # Countdown format
                         msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
-                        self._time(msg)
+                        self._print(msg)
                         # Render
                         label = self._render_text(msg, self._big_font)
                         lw, lh = label.get_size()
@@ -474,7 +475,7 @@ class VideoLooper:
                         infotext = '(endless loop)'
 
                     # Start playing the first available movie.
-                    self._time('Playing movie: {0} {1}'.format(movie, infotext))
+                    self._print('Playing movie: {0} {1}'.format(movie, infotext))
                     # todo: maybe clear screen to black so that background (image/color) is not visible for videos with a resolution that is < screen resolution
                     self._player.play(movie, loop=-1 if playlist.length()==1 else None, vol = self._sound_vol)
 

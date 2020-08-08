@@ -55,7 +55,8 @@ docs/_build/
 target/
 .idea/
 
-# OSX
+# OSX & Temp
 .DS_Store
 ._*
 *.swp
+*.save
