@@ -113,11 +113,11 @@ class VideoLooper:
             'second': -1
         }
 
-    def _print(self, message):
+    def _print(self, message = ''):
         """Print message to standard output if console output is enabled."""
         if self._console_output:
             #print(message)
-            self._time(message)
+            print( self._time(message) )
 
     def _load_player(self):
         """Load the configured video player and return an instance of it."""
@@ -364,7 +364,7 @@ class VideoLooper:
 
     # Print time
     def _time(self, msg = ''):
-        self._print('[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else ''))
+        return '[{:02d}:{:02d}:{:02d}]{}'.format(self._clock['hour'], self._clock['minute'], self._clock['second'], ': {}'.format(msg) if len(msg) else '')
 
     def _ready_to_play(self, playlist):
         """Are we scheduled to play?"""
@@ -382,7 +382,7 @@ class VideoLooper:
 
             # Feedback once in a minute while video is playing
             if self._player.is_playing() and self._clock['second'] == 0:
-                self._time()
+                self._print()
 
             # Only think about our next move if playlist is not playing anymore
             if playlist.is_finished():
@@ -390,10 +390,10 @@ class VideoLooper:
                 # When is the next scheduled play?
 
                 # Start at every hour
-                scheduled = now.replace(hour=((self._clock['hour']+1)%24), minute=0, second=0)
+#                scheduled = now.replace(hour=((self._clock['hour']+1)%24), minute=0, second=0)
 
                 # Testing
-#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
 #                scheduled = now.replace(minute=15, second=0)
 
                 scheduled = scheduled - now
@@ -409,7 +409,7 @@ class VideoLooper:
 
                 # Show time
                 if countdown_total < self._countdown_starts_at or not self._osd:
-                    self._time()
+                    self._print()
 
                 # Visual Countdown
                 if self._osd:
