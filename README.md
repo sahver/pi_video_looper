@@ -18,6 +18,9 @@ There are also pre-compiled versions available from <https://videolooper.de> (bu
    since Rasperry Pi OS 11 (bullseye) omxplayer and hello_video are no longer supported.  
    cvlc can be used with the legacy os as well. The install script automatically installs the appropriate dependencies for your system.
 
+#### v1.0.11
+ - fixed skip bug with image_player
+
 #### new in v1.0.10
  - NEW PLAYER: "Image Player" (beta)  
    Displays images in a slideshow instead of playing videos.
