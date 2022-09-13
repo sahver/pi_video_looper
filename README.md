@@ -19,6 +19,9 @@ There are also pre-compiled images available from <https://videolooper.de> (but 
    since Rasperry Pi OS 11 (bullseye) omxplayer and hello_video are no longer supported.  
    cvlc can be used with the legacy os as well. The install script automatically installs the appropriate dependencies for your system.
 
+#### new in v1.0.12
+ - added "back" keyboard shortcut to play previous file
+
 #### v1.0.11
  - fixed skip bug with image_player
  - fixed possible dependency issue
@@ -137,6 +140,7 @@ Note: files with the same name always get overwritten.
 The following keyboard commands are active by default (can be disabled in the [video_looper.ini](https://github.com/adafruit/pi_video_looper/blob/master/assets/video_looper.ini)):
 * "ESC" - stops playback and exits video_looper
 * "k" - sKip - stops the playback of current file and plays next file
+* "b" - Back - stops the playback of current file and plays previous file
 * "s" - Stop/Start - stops or starts playback of current file
 * "p" - Power off - stop playback and shutdown RPi
 
