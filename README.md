@@ -19,6 +19,11 @@ There are also pre-compiled images available from <https://videolooper.de> (but 
    since Rasperry Pi OS 11 (bullseye) omxplayer and hello_video are no longer supported.  
    cvlc can be used with the legacy os as well. The install script automatically installs the appropriate dependencies for your system.
 
+#### new in v1.0.13
+ - Additional date/time functionality added. 
+   Allows you to add a second smaller line to display things like the date correctly.
+ - pressing spacebar will pause/resume omxplayer and image_player
+ 
 #### new in v1.0.12
  - date/time display option
    allows you to display the current date and time between the videos
@@ -147,6 +152,7 @@ The following keyboard commands are active by default (can be disabled in the [v
 * "b" - Back - stops the playback of current file and plays previous file
 * "s" - Stop/Start - stops or starts playback of current file
 * "p" - Power off - stop playback and shutdown RPi
+* " " - (space bar) - Pause/Resume the omxplayer and imageplayer
 
 #### troubleshooting:
 * nothing happening (screen flashes once) when in copymode and new drive is plugged in?
