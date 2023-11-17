@@ -19,6 +19,9 @@ There are also pre-compiled images available from <https://videolooper.de> (but 
    since Rasperry Pi OS 11 (bullseye) omxplayer and hello_video are no longer supported.  
    cvlc can be used with the legacy os as well. The install script automatically installs the appropriate dependencies for your system.
 
+#### new in v1.0.15
+ - one shot playback: option to enable stopping playback after each file (usefull in combination with gpio triggers)
+
 #### new in v1.0.14
  - control the video looper via RPI GPIO pins (see section "control" below)
 
