@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 # Basic system prep
 echo "Installing dependencies..."
 echo "=========================="
-apt update && apt -y install python3 python3-pip python3-pygame supervisor ntfs-3g exfat-fuse vlc
+apt update && apt -y install python3 python3-pip python3-pygame python3-setuptools supervisor ntfs-3g exfat-fuse vlc
 
 mkdir -p /mnt/usbdrive0 # This is very important if you put your system in readonly after
 mkdir -p /home/pi/video # create default video directory
@@ -88,7 +88,7 @@ fi
 
 echo "Installing video_looper program..."
 echo "=================================="
-pip3 install setuptools
+#pip3 install setuptools
 python3 setup.py install --force
 
 echo "Configuring video_looper to run on start..."
