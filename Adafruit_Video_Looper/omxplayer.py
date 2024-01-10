@@ -47,6 +47,7 @@ class OMXPlayer:
                 self._subtitle_header = '00:00:00,00 --> {:d}:{:02d}:{:02d},00\n'.format(h, m, s)
             else:
                 self._subtitle_header = '00:00:00,00 --> 99:59:59,00\n'
+        self._sync_primary = config.getboolean('omxplayer', 'sync_primary', fallback=False)
 
     def supported_extensions(self):
         """Return list of supported file extensions."""
@@ -56,7 +57,9 @@ class OMXPlayer:
         """Play the provided movie file, optionally looping it repeatedly."""
         self.stop(3)  # Up to 3 second delay to let the old player stop.
         # Assemble list of arguments.
-        args = ['omxplayer']
+        args = ['omxplayer-sync']
+        args.append('--debug')
+        args.append('-m' if self._sync_primary else '-l')
         args.extend(['-o', self._sound])  # Add sound arguments.
         args.extend(self._extra_args)     # Add extra arguments from config.
         if vol != 0:
@@ -75,7 +78,8 @@ class OMXPlayer:
         # Run omxplayer process and direct standard output to /dev/null.
         # Establish input pipe for commands
         self._process = subprocess.Popen(args,
-                                         stdout=open(os.devnull, 'wb'),
+#                                         stdout=open(os.devnull, 'wb'),
+                                         stdout=open("/home/ki/video.log", 'w'),
                                          stdin=subprocess.PIPE,
                                          close_fds=True)
 
