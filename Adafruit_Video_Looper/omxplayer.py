@@ -63,7 +63,7 @@ class OMXPlayer:
         # Assemble list of arguments.
 #        args = ['omxplayer']
         args = ['omxplayer-sync']
-        args.append('--debug')
+        args.append('--verbose')
         args.append('-m' if self._sync_primary else '-l')
         args.extend(['-o', self._sound])  # Add sound arguments.
         args.extend(self._extra_args)     # Add extra arguments from config.
