@@ -7,6 +7,10 @@ import subprocess
 import tempfile
 import time
 
+#import select
+#from queue import Queue, Empty
+#from threading  import Thread
+
 from .alsa_config import parse_hw_device
 
 class OMXPlayer:
@@ -18,7 +22,7 @@ class OMXPlayer:
         self._process = None
         self._temp_directory = None
         self._load_config(config)
-
+ 
     def __del__(self):
         if self._temp_directory:
             shutil.rmtree(self._temp_directory)
@@ -57,6 +61,7 @@ class OMXPlayer:
         """Play the provided movie file, optionally looping it repeatedly."""
         self.stop(3)  # Up to 3 second delay to let the old player stop.
         # Assemble list of arguments.
+#        args = ['omxplayer']
         args = ['omxplayer-sync']
         args.append('--debug')
         args.append('-m' if self._sync_primary else '-l')
@@ -77,11 +82,19 @@ class OMXPlayer:
         args.append(movie.target)       # Add movie file path.
         # Run omxplayer process and direct standard output to /dev/null.
         # Establish input pipe for commands
-        self._process = subprocess.Popen(args,
+        os.system( ' '.join(args) )
+#        self._process = subprocess.Popen(args,
 #                                         stdout=open(os.devnull, 'wb'),
-                                         stdout=open("/home/ki/video.log", 'w'),
-                                         stdin=subprocess.PIPE,
-                                         close_fds=True)
+#                                         stdin=subprocess.PIPE,
+#                                         close_fds=True,
+#                                         bufsize=1)
+
+    def stdout(self):
+        print('**** STDOUT ****')
+        output = self._process.stdout.readline()
+        if output:
+            print('**** OUTPUT ****')
+            print(output)
 
     def pause(self):
         self.sendKey("p")
