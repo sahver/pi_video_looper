@@ -81,6 +81,8 @@ class VideoLooper:
                                              .translate(str.maketrans('','', ','))
                                              .split()))
         # Initialize pygame and display a blank screen.
+        import os
+        os.environ["DISPLAY"] = ":0"
         pygame.display.init()
         pygame.font.init()
         pygame.mouse.set_visible(False)
