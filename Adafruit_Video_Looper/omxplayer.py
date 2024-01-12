@@ -52,6 +52,7 @@ class OMXPlayer:
             else:
                 self._subtitle_header = '00:00:00,00 --> 99:59:59,00\n'
         self._sync_primary = config.getboolean('omxplayer', 'sync_primary', fallback=False)
+        self._sync_debug = config.getboolean('video_looper', 'console_output', fallback=False)
 
     def supported_extensions(self):
         """Return list of supported file extensions."""
@@ -63,8 +64,8 @@ class OMXPlayer:
         # Assemble list of arguments.
 #        args = ['omxplayer']
         args = ['omxplayer-sync']
-        args.append('--verbose')
-        args.append('-m' if self._sync_primary else '-l')
+        args.append('--debug' if self._sync_debug else '--verbose')
+        args.append('--master' if self._sync_primary else '--slave')
         args.extend(['-o', self._sound])  # Add sound arguments.
         args.extend(self._extra_args)     # Add extra arguments from config.
         if vol != 0:
