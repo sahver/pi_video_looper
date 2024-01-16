@@ -524,7 +524,6 @@ class VideoLooper:
                     self._print('Playing movie: {0} {1}'.format(movie, infotext))
                     # todo: maybe clear screen to black so that background (image/color) is not visible for videos with a resolution that is < screen resolution
                     self._player.play(movie, loop=-1 if self._playlist.length()==1 else None, vol = self._sound_vol)
-            else: self._player.stdout()
 
             # Check for changes in the file search path (like USB drives added)
             # and rebuild the playlist.

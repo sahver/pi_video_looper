@@ -4,6 +4,7 @@
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -83,19 +84,11 @@ class OMXPlayer:
         args.append(movie.target)       # Add movie file path.
         # Run omxplayer process and direct standard output to /dev/null.
         # Establish input pipe for commands
-        os.system( ' '.join(args) )
-#        self._process = subprocess.Popen(args,
-#                                         stdout=open(os.devnull, 'wb'),
-#                                         stdin=subprocess.PIPE,
-#                                         close_fds=True,
-#                                         bufsize=1)
-
-    def stdout(self):
-        print('**** STDOUT ****')
-        output = self._process.stdout.readline()
-        if output:
-            print('**** OUTPUT ****')
-            print(output)
+        self._process = subprocess.Popen(args,
+                                         stdout=sys.stdout,
+                                         stderr=sys.stderr,
+                                         stdin=subprocess.PIPE,
+                                         close_fds=True)
 
     def pause(self):
         if self.is_playing():
@@ -117,7 +110,7 @@ class OMXPlayer:
         if self._process is not None and self._process.returncode is None:
             # There are a couple processes used by omxplayer, so kill both
             # with a pkill command.
-            subprocess.call(['pkill', '-9', 'omxplayer'])
+            subprocess.call(['pkill', '-f', 'omxplayer'])
         # If a blocking timeout was specified, wait up to that amount of time
         # for the process to stop.
         start = time.time()
