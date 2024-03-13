@@ -55,6 +55,8 @@ class Playlist:
         self._movies = movies
         self._index = None
         self._next = None
+        # Scheduled play
+        self._finished = True
 
     def get_next(self, is_random, resume = False) -> Movie:
         """Get the next movie in the playlist. Will loop to start of playlist
@@ -92,6 +94,12 @@ class Playlist:
             if self._index >= self.length():
                 self._index = 0
 
+            # Scheduled play,
+            # with this one we mark playlist as finished
+            if (self._index+1) == self.length():
+                self._finished = True
+                print('[Last movie in the playlist]')
+
         if resume:
             with open('playlist_index.txt','w') as f:
                 f.write(str(self._index))
@@ -127,3 +135,15 @@ class Playlist:
     def clear_all_playcounts(self):
         for movie in self._movies:
             movie.clear_playcount()
+
+    #
+    # Scheduled play
+    #
+
+    def is_finished(self):
+        """Has playlist arrived to the end?"""
+        return self._finished
+
+    def reset(self):
+        """Reset finished status"""
+        self._finished = False

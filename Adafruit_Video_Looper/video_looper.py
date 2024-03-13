@@ -126,6 +126,14 @@ class VideoLooper:
         else:
             self._pinMap = None
 
+        # Scheduled play
+        self._countdown_starts_at = 10 # seconds
+        self._clock = {
+            'hour'  : -1,
+            'minute': -1,
+            'second': -1
+        }
+
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
         if self._console_output:
@@ -476,7 +484,78 @@ class VideoLooper:
             GPIO.add_event_detect(int(pin), GPIO.FALLING, callback=self._handle_gpio_control,  bouncetime=200) 
             self._print("pin {} action set to: {}".format(pin, self._pinMap[pin]))
 
-        
+    #
+    # Scheduled play
+    #
+
+    def _ready_to_play(self, playlist):
+        """Are we scheduled to play?"""
+
+        # What time is it?
+        now = datetime.now()
+
+        # Is at least a second passed since last time?
+        if now.second != self._clock['second']:
+
+            # Remember now
+            self._clock['hour'] = now.hour
+            self._clock['minute'] = now.minute
+            self._clock['second'] = now.second
+
+            # Feedback once in a minute while video is playing
+            if self._player.is_playing() and self._clock['second'] == 0:
+                self._print('')
+
+            # Only think about our next move if playlist is not playing anymore
+            elif not self._player.is_playing() and playlist.is_finished():
+
+                # When is the next scheduled play?
+
+                # Start at every hour
+                scheduled = now.replace(hour=((self._clock['hour']+1)%24), minute=0, second=0)
+
+                # Testing
+#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
+#                scheduled = now.replace(minute=15, second=0)
+
+                scheduled = scheduled - now
+
+                countdown_total = int(scheduled.total_seconds())
+                countdown_minutes = (countdown_total % 3600) // 60
+                countdown_seconds = countdown_total % 60
+
+                # Schedule alarm!
+                if countdown_total == 1:
+                    playlist.reset()
+                    self._print('Scheduled play starts')
+
+                # Show time
+                if countdown_total < self._countdown_starts_at or not self._osd:
+                    self._print('')
+
+                # Visual Countdown
+                if self._osd:
+                    # Prepare for showing
+                    if countdown_total >= self._countdown_starts_at:
+                        # Countdown format
+                        msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
+                        self._print(msg)
+                        # Render
+                        label = self._render_text(msg, self._big_font)
+                        lw, lh = label.get_size()
+                        # Clear screen and draw text with line1 above line2 and all
+                        # centered horizontally and vertically.
+                        sw, sh = self._screen.get_size()
+                        self._screen.fill(self._bgcolor)
+                        self._screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
+                        pygame.display.update()
+                    # Clear screen
+                    else:
+                        self._blank_screen()
+
+        # We are ready if playlist is not finished
+        return not playlist.is_finished()
+
     def run(self):
         """Main program loop.  Will never return!"""
         # Get playlist of movies to play from file reader.
@@ -488,7 +567,13 @@ class VideoLooper:
         while self._running:
             # Load and play a new movie if nothing is playing.
             if not self._player.is_playing() and not self._playbackStopped:
-                if movie is not None: #just to avoid errors
+                if (
+                    #just to avoid errors
+                    movie is not None 
+                    and 
+                    # scheduled play
+                    self._ready_to_play(self._playlist)
+                ):
 
                     if movie.playcount >= movie.repeats:
                         movie.clear_playcount()
@@ -572,7 +657,7 @@ class VideoLooper:
 
 # Main entry point.
 if __name__ == '__main__':
-    print('Starting Adafruit Video Looper.')
+    print('Starting Adafruit Video Looper /w Scheduling mod')
     # Default config path to /boot.
     config_path = '/boot/video_looper.ini'
     # Override config path if provided as parameter.
