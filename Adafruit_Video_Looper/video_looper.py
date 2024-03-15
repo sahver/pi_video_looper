@@ -77,6 +77,8 @@ class VideoLooper:
         self._fgcolor = list(map(int, self._config.get('video_looper', 'fgcolor')
                                              .translate(str.maketrans('','', ','))
                                              .split()))
+        # Scheduled play countdown
+        self._scheduled_countdown = self._config.getboolean('video_looper', 'scheduled_countdown')
         # Initialize pygame and display a blank screen.
         pygame.display.init()
         pygame.font.init()
@@ -127,12 +129,30 @@ class VideoLooper:
             self._pinMap = None
 
         # Scheduled play
-        self._countdown_starts_at = 10 # seconds
         self._clock = {
             'hour'  : -1,
             'minute': -1,
             'second': -1
         }
+        self._schedule = [
+            # Start at specific times
+            datetime.now().replace(hour=11, minute=00, second=0, microsecond=0), 
+            datetime.now().replace(hour=11, minute=45, second=0, microsecond=0), 
+            datetime.now().replace(hour=12, minute=30, second=0, microsecond=0), 
+            datetime.now().replace(hour=13, minute=15, second=0, microsecond=0), 
+            datetime.now().replace(hour=14, minute=00, second=0, microsecond=0), 
+            datetime.now().replace(hour=14, minute=45, second=0, microsecond=0), 
+            datetime.now().replace(hour=15, minute=30, second=0, microsecond=0), 
+            datetime.now().replace(hour=16, minute=15, second=0, microsecond=0), 
+            datetime.now().replace(hour=17, minute=00, second=0, microsecond=0), 
+            datetime.now().replace(hour=17, minute=45, second=0, microsecond=0), 
+            datetime.now().replace(hour=18, minute=30, second=0, microsecond=0), 
+            datetime.now().replace(hour=19, minute=15, second=0, microsecond=0), 
+            datetime.now().replace(hour=20, minute=00, second=0, microsecond=0), 
+            datetime.now().replace(hour=20, minute=45, second=0, microsecond=0), 
+            datetime.now().replace(hour=21, minute=30, second=0, microsecond=0), 
+        ]
+        self._scheduled_countdown_disappears_at = 10 # seconds
 
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
@@ -509,15 +529,14 @@ class VideoLooper:
             # Only think about our next move if playlist is not playing anymore
             elif not self._player.is_playing() and playlist.is_finished():
 
-                # When is the next scheduled play?
-
+                # Scheduled play
+                scheduled = min(self._schedule, key=lambda x: (x<now, abs(x-now)))
                 # Start at every hour
-                scheduled = now.replace(hour=((self._clock['hour']+1)%24), minute=0, second=0)
+#                scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
+                # Start next minute
+#                scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
 
-                # Testing
-#                scheduled = now.replace(minute=(self._clock['minute']+1), second=0)
-#                scheduled = now.replace(minute=15, second=0)
-
+                # Countdown
                 scheduled = scheduled - now
 
                 countdown_total = int(scheduled.total_seconds())
@@ -529,17 +548,12 @@ class VideoLooper:
                     playlist.reset()
                     self._print('Scheduled play starts')
 
-                # Show time
-                if countdown_total < self._countdown_starts_at or not self._osd:
-                    self._print('')
-
                 # Visual Countdown
-                if self._osd:
+                if self._osd and self._scheduled_countdown:
                     # Prepare for showing
-                    if countdown_total >= self._countdown_starts_at:
+                    if countdown_total >= self._scheduled_countdown_disappears_at:
                         # Countdown format
                         msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
-                        self._print(msg)
                         # Render
                         label = self._render_text(msg, self._big_font)
                         lw, lh = label.get_size()
@@ -552,6 +566,9 @@ class VideoLooper:
                     # Clear screen
                     else:
                         self._blank_screen()
+
+                # Log
+                self._print('{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds))                    
 
         # We are ready if playlist is not finished
         return not playlist.is_finished()
