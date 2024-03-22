@@ -13,7 +13,7 @@ import time
 import pygame
 import json
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 import RPi.GPIO as GPIO
 
 from .alsa_config import parse_hw_device
@@ -516,6 +516,11 @@ class VideoLooper:
 
                     # Next scheduled play
                     scheduled = min(self._scheduled_at, key=lambda x: (x<now, abs(x-now)))
+
+                    # Loop if we are finished for today
+                    if scheduled < now:
+                        scheduled = self._scheduled_at[0] + timedelta(days=1)
+
                     # Start at every hour
     #                scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
                     # Start next minute
@@ -523,7 +528,6 @@ class VideoLooper:
 
                     # Countdown
                     countdown = scheduled - now
-
                     countdown_total = int(countdown.total_seconds())
                     countdown_hours = countdown_total // 3600
                     countdown_minutes = (countdown_total % 3600) // 60
