@@ -77,8 +77,16 @@ class VideoLooper:
         self._fgcolor = list(map(int, self._config.get('video_looper', 'fgcolor')
                                              .translate(str.maketrans('','', ','))
                                              .split()))
-        # Scheduled play countdown
-        self._scheduled_countdown = self._config.getboolean('video_looper', 'scheduled_countdown')
+        # Scheduled play
+        self._scheduled_clock = datetime.now() 
+        self._scheduled_countdown = self._config.getboolean('scheduled', 'countdown', fallback=True)
+        self._scheduled_countdown_disappears_at = self._config.getint('scheduled', 'countdown_disappears_at', fallback=10)
+        self._scheduled_at = list(
+                                map(
+                                    lambda x: datetime.combine(datetime.now().date(), datetime.strptime(x, '%H:%M').time()), 
+                                    self._config.get('scheduled', 'at').translate(str.maketrans('','', ',')).split()
+                                )
+                            )
         # Initialize pygame and display a blank screen.
         pygame.display.init()
         pygame.font.init()
@@ -127,32 +135,6 @@ class VideoLooper:
                 self._print("gpio_pin_map setting is not valid and/or error with GPIO setup")
         else:
             self._pinMap = None
-
-        # Scheduled play
-        self._clock = {
-            'hour'  : -1,
-            'minute': -1,
-            'second': -1
-        }
-        self._schedule = [
-            # Start at specific times
-            datetime.now().replace(hour=11, minute=00, second=0, microsecond=0), 
-            datetime.now().replace(hour=11, minute=45, second=0, microsecond=0), 
-            datetime.now().replace(hour=12, minute=30, second=0, microsecond=0), 
-            datetime.now().replace(hour=13, minute=15, second=0, microsecond=0), 
-            datetime.now().replace(hour=14, minute=00, second=0, microsecond=0), 
-            datetime.now().replace(hour=14, minute=45, second=0, microsecond=0), 
-            datetime.now().replace(hour=15, minute=30, second=0, microsecond=0), 
-            datetime.now().replace(hour=16, minute=15, second=0, microsecond=0), 
-            datetime.now().replace(hour=17, minute=00, second=0, microsecond=0), 
-            datetime.now().replace(hour=17, minute=45, second=0, microsecond=0), 
-            datetime.now().replace(hour=18, minute=30, second=0, microsecond=0), 
-            datetime.now().replace(hour=19, minute=15, second=0, microsecond=0), 
-            datetime.now().replace(hour=20, minute=00, second=0, microsecond=0), 
-            datetime.now().replace(hour=20, minute=45, second=0, microsecond=0), 
-            datetime.now().replace(hour=21, minute=30, second=0, microsecond=0), 
-        ]
-        self._scheduled_countdown_disappears_at = 10 # seconds
 
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
@@ -511,67 +493,74 @@ class VideoLooper:
     def _ready_to_play(self, playlist):
         """Are we scheduled to play?"""
 
-        # What time is it?
-        now = datetime.now()
+        # Do we have a schedule?
+        if not self._scheduled_at:
+            return True
+        else:
 
-        # Is at least a second passed since last time?
-        if now.second != self._clock['second']:
+            # What time is it?
+            now = datetime.now()
 
-            # Remember now
-            self._clock['hour'] = now.hour
-            self._clock['minute'] = now.minute
-            self._clock['second'] = now.second
+            # Is at least a second passed since last time?
+            if now.second != self._scheduled_clock.second:
 
-            # Feedback once in a minute while video is playing
-            if self._player.is_playing() and self._clock['second'] == 0:
-                self._print('')
+                # Remember now
+                self._scheduled_clock = now
 
-            # Only think about our next move if playlist is not playing anymore
-            elif not self._player.is_playing() and playlist.is_finished():
+                # Feedback once in a minute while video is playing
+                if self._player.is_playing() and self._scheduled_clock.second == 0:
+                    self._print('')
 
-                # Scheduled play
-                scheduled = min(self._schedule, key=lambda x: (x<now, abs(x-now)))
-                # Start at every hour
-#                scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
-                # Start next minute
-#                scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
+                # Only think about our next move if playlist is not playing anymore
+                elif not self._player.is_playing() and playlist.is_finished():
 
-                # Countdown
-                scheduled = scheduled - now
+                    # Next scheduled play
+                    scheduled = min(self._scheduled_at, key=lambda x: (x<now, abs(x-now)))
+                    # Start at every hour
+    #                scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
+                    # Start next minute
+    #                scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
 
-                countdown_total = int(scheduled.total_seconds())
-                countdown_minutes = (countdown_total % 3600) // 60
-                countdown_seconds = countdown_total % 60
+                    # Countdown
+                    countdown = scheduled - now
 
-                # Schedule alarm!
-                if countdown_total == 1:
-                    playlist.reset()
-                    self._print('Scheduled play starts')
+                    countdown_total = int(countdown.total_seconds())
+                    countdown_hours = countdown_total // 3600
+                    countdown_minutes = (countdown_total % 3600) // 60
+                    countdown_seconds = countdown_total % 60
 
-                # Visual Countdown
-                if self._osd and self._scheduled_countdown:
-                    # Prepare for showing
-                    if countdown_total >= self._scheduled_countdown_disappears_at:
-                        # Countdown format
-                        msg = '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
-                        # Render
-                        label = self._render_text(msg, self._big_font)
-                        lw, lh = label.get_size()
-                        # Clear screen and draw text with line1 above line2 and all
-                        # centered horizontally and vertically.
-                        sw, sh = self._screen.get_size()
-                        self._screen.fill(self._bgcolor)
-                        self._screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
-                        pygame.display.update()
-                    # Clear screen
-                    else:
-                        self._blank_screen()
+                    # Schedule alarm!
+                    if countdown_total == 1:
+                        playlist.reset()
+                        self._print('Scheduled play starts')
 
-                # Log
-                self._print('{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds))                    
+                    # Visual Countdown
+                    if self._osd and self._scheduled_countdown:
+                        # Prepare for showing
+                        if countdown_total >= self._scheduled_countdown_disappears_at:
+                            # Countdown format
+                            msg = '{:02d}:{:02d}:{:02d}'.format(countdown_hours, countdown_minutes, countdown_seconds) if countdown_hours > 0 else '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
+                            label = self._render_text(msg, self._big_font)
+                            lw, lh = label.get_size()
+                            sw, sh = self._screen.get_size()
+                            self._screen.fill(self._bgcolor)
+                            self._screen.blit(label, (round(sw/2-lw/2), round(sh/2-lh/2)))
+                            # Schedule format
+                            msg = '{:02d}:{:02d}'.format(scheduled.hour, scheduled.minute)
+                            label2 = self._render_text('Next play at ' + msg)
+                            l2w, l2h = label2.get_size()
+                            self._screen.blit(label2, (round(sw/2-l2w/2), round(sh/2-lh/2-l2h)))
+                            # Done
+                            pygame.display.update()
+                        # Clear screen
+                        else:
+                            self._blank_screen()
 
-        # We are ready if playlist is not finished
-        return not playlist.is_finished()
+                    # Log
+                    self._print('{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds))
+
+            # We are ready if playlist is not finished
+            return not playlist.is_finished()
 
     def run(self):
         """Main program loop.  Will never return!"""
@@ -587,7 +576,7 @@ class VideoLooper:
                 if (
                     #just to avoid errors
                     movie is not None 
-                    and 
+                    and
                     # scheduled play
                     self._ready_to_play(self._playlist)
                 ):
@@ -674,7 +663,7 @@ class VideoLooper:
 
 # Main entry point.
 if __name__ == '__main__':
-    print('Starting Adafruit Video Looper /w Scheduling mod')
+    print('Starting Adafruit Video Looper /w Scheduling')
     # Default config path to /boot.
     config_path = '/boot/video_looper.ini'
     # Override config path if provided as parameter.
