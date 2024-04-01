@@ -94,12 +94,6 @@ class Playlist:
             if self._index >= self.length():
                 self._index = 0
 
-            # Scheduled play,
-            # with this one we mark playlist as finished
-            if (self._index+1) == self.length():
-                self._finished = True
-                print('[Last movie in the playlist]')
-
         if resume:
             with open('playlist_index.txt','w') as f:
                 f.write(str(self._index))
@@ -143,7 +137,3 @@ class Playlist:
     def is_finished(self):
         """Has playlist arrived to the end?"""
         return self._finished
-
-    def reset(self):
-        """Reset finished status"""
-        self._finished = False

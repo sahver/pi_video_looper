@@ -490,81 +490,70 @@ class VideoLooper:
     # Scheduled play
     #
 
-    def _ready_to_play(self, playlist):
+    def _scheduled_to_play(self):
         """Are we scheduled to play?"""
 
-        # Do we have a schedule?
-        if not self._scheduled_at:
-            return True
-        else:
+        # What time is it?
+        now = datetime.now()
 
-            # What time is it?
-            now = datetime.now()
+        # Is at least a second passed since last time?
+        if now.second != self._scheduled_clock.second:
 
-            # Is at least a second passed since last time?
-            if now.second != self._scheduled_clock.second:
+            # Remember now
+            self._scheduled_clock = now
 
-                # Remember now
-                self._scheduled_clock = now
+            # Next scheduled play
+            scheduled = min(self._scheduled_at, key=lambda x: (x<now, abs(x-now)))
 
-                # Feedback once in a minute while video is playing
-                if self._player.is_playing() and self._scheduled_clock.second == 0:
-                    self._print('')
+            # Loop if we are finished for today
+            if scheduled < now:
+                scheduled = self._scheduled_at[0] + timedelta(days=1)
 
-                # Only think about our next move if playlist is not playing anymore
-                elif not self._player.is_playing() and playlist.is_finished():
+            # Start at every hour
+#            scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
+            # Start next minute
+#            scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
 
-                    # Next scheduled play
-                    scheduled = min(self._scheduled_at, key=lambda x: (x<now, abs(x-now)))
+            # Countdown
+            countdown = scheduled - now
+            countdown_total = int(countdown.total_seconds())
+            countdown_hours = countdown_total // 3600
+            countdown_minutes = (countdown_total % 3600) // 60
+            countdown_seconds = countdown_total % 60
 
-                    # Loop if we are finished for today
-                    if scheduled < now:
-                        scheduled = self._scheduled_at[0] + timedelta(days=1)
+            # Visual Countdown
+            if self._osd and self._scheduled_countdown:
+                # Prepare for showing
+                if countdown_total >= self._scheduled_countdown_disappears_at:
+                    # Countdown format
+                    msg = '{:02d}:{:02d}:{:02d}'.format(countdown_hours, countdown_minutes, countdown_seconds) if countdown_hours > 0 else '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
+                    label = self._render_text(msg, self._big_font)
+                    lw, lh = label.get_size()
+                    sw, sh = self._screen.get_size()
+                    self._screen.fill(self._bgcolor)
+                    self._screen.blit(label, (round(sw/2-lw/2), round(sh/2-lh/2)))
+                    # Schedule format
+                    msg = '{:02d}:{:02d}'.format(scheduled.hour, scheduled.minute)
+                    label2 = self._render_text('Next play at ' + msg)
+                    l2w, l2h = label2.get_size()
+                    self._screen.blit(label2, (round(sw/2-l2w/2), round(sh/2-lh/2-l2h)))
+                    # Done
+                    pygame.display.update()
+                # Clear screen
+                else:
+                    self._blank_screen()
 
-                    # Start at every hour
-    #                scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
-                    # Start next minute
-    #                scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
+            # Log
+            self._print('{:02d}:{:02d}:{:02d}'.format(countdown_hours, countdown_minutes, countdown_seconds) if countdown_hours > 0 else '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds))
 
-                    # Countdown
-                    countdown = scheduled - now
-                    countdown_total = int(countdown.total_seconds())
-                    countdown_hours = countdown_total // 3600
-                    countdown_minutes = (countdown_total % 3600) // 60
-                    countdown_seconds = countdown_total % 60
+            # We are scheduled to play!
+            if countdown_total == 1:
+                self._print('Scheduled play starts')
+                return True
 
-                    # Schedule alarm!
-                    if countdown_total == 1:
-                        playlist.reset()
-                        self._print('Scheduled play starts')
-
-                    # Visual Countdown
-                    if self._osd and self._scheduled_countdown:
-                        # Prepare for showing
-                        if countdown_total >= self._scheduled_countdown_disappears_at:
-                            # Countdown format
-                            msg = '{:02d}:{:02d}:{:02d}'.format(countdown_hours, countdown_minutes, countdown_seconds) if countdown_hours > 0 else '{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds)
-                            label = self._render_text(msg, self._big_font)
-                            lw, lh = label.get_size()
-                            sw, sh = self._screen.get_size()
-                            self._screen.fill(self._bgcolor)
-                            self._screen.blit(label, (round(sw/2-lw/2), round(sh/2-lh/2)))
-                            # Schedule format
-                            msg = '{:02d}:{:02d}'.format(scheduled.hour, scheduled.minute)
-                            label2 = self._render_text('Next play at ' + msg)
-                            l2w, l2h = label2.get_size()
-                            self._screen.blit(label2, (round(sw/2-l2w/2), round(sh/2-lh/2-l2h)))
-                            # Done
-                            pygame.display.update()
-                        # Clear screen
-                        else:
-                            self._blank_screen()
-
-                    # Log
-                    self._print('{:02d}:{:02d}'.format(countdown_minutes, countdown_seconds))
-
-            # We are ready if playlist is not finished
-            return not playlist.is_finished()
+        # We are always ready,
+        # unless we have scheduled plays
+        return True if not self._scheduled_at else False
 
     def run(self):
         """Main program loop.  Will never return!"""
@@ -575,15 +564,19 @@ class VideoLooper:
         movie = self._playlist.get_next(self._is_random, self._resume_playlist)
         # Main loop to play videos in the playlist and listen for file changes.
         while self._running:
-            # Load and play a new movie if nothing is playing.
-            if not self._player.is_playing() and not self._playbackStopped:
-                if (
-                    #just to avoid errors
-                    movie is not None 
-                    and
-                    # scheduled play
-                    self._ready_to_play(self._playlist)
-                ):
+            if (
+                # Load and play a new movie if nothing is playing.
+                not self._player.is_playing() and not self._playbackStopped
+                # Scheduled play
+                and (
+                    # But only if we havent't finished the playlist
+                    not self._playlist.is_finished()
+                    # Or we have, but we are scheduled to play again
+                    or
+                    ( self._playlist.length() and self._scheduled_to_play() and self._playlist.is_finished() )
+                )
+            ):
+                if movie is not None: #just to avoid errors
 
                     if movie.playcount >= movie.repeats:
                         movie.clear_playcount()
@@ -593,6 +586,17 @@ class VideoLooper:
                         movie = self._playlist.get_next(self._is_random, self._resume_playlist)
 
                     movie.was_played()
+
+                    # Scheduled play
+                    # Mark playlist unfinished if we are about to play the first one
+                    if (self._playlist._index == 0):
+                        self._playlist._finished = False
+                        self._print('First movie in the playlist')
+                    # Mark playlist finished if we are about to play the last one
+                    if (self._playlist._index+1) >= self._playlist.length():
+                        self._playlist._finished = True
+                        self._print('Last movie in the playlist')
+                    # Scheduled play end
 
                     if self._wait_time > 0 and not self._firstStart:
                         if(self._datetime_display):
@@ -616,7 +620,7 @@ class VideoLooper:
                     # Start playing the first available movie.
                     self._print('Playing movie: {0} {1}'.format(movie, infotext))
                     # todo: maybe clear screen to black so that background (image/color) is not visible for videos with a resolution that is < screen resolution
-                    self._player.play(movie, loop=-1 if self._playlist.length()==1 else None, vol = self._sound_vol)
+                    self._player.play(movie, loop=None, vol = self._sound_vol)
 
             # Check for changes in the file search path (like USB drives added)
             # and rebuild the playlist.
