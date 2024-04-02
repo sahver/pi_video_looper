@@ -81,12 +81,7 @@ class VideoLooper:
         self._scheduled_clock = datetime.now() 
         self._scheduled_countdown = self._config.getboolean('scheduled', 'countdown', fallback=True)
         self._scheduled_countdown_disappears_at = self._config.getint('scheduled', 'countdown_disappears_at', fallback=10)
-        self._scheduled_at = list(
-                                map(
-                                    lambda x: datetime.combine(datetime.now().date(), datetime.strptime(x, '%H:%M').time()), 
-                                    self._config.get('scheduled', 'at').translate(str.maketrans('','', ',')).split()
-                                )
-                            )
+        self._scheduled_at = self._config.get('scheduled', 'at').translate(str.maketrans('','', ',')).split()
         # Initialize pygame and display a blank screen.
         pygame.display.init()
         pygame.font.init()
@@ -502,17 +497,20 @@ class VideoLooper:
             # Remember now
             self._scheduled_clock = now
 
+            # Convert schedule to dates
+            scheduled_at = list(
+                                map(
+                                    lambda x: datetime.combine(datetime.now().date(), datetime.strptime(x, '%H:%M').time()), 
+                                    self._scheduled_at
+                                )
+                            )
+
             # Next scheduled play
-            scheduled = min(self._scheduled_at, key=lambda x: (x<now, abs(x-now)))
+            scheduled = min(scheduled_at, key=lambda x: (x<now, abs(x-now)))
 
             # Loop if we are finished for today
             if scheduled < now:
-                scheduled = self._scheduled_at[0] + timedelta(days=1)
-
-            # Start at every hour
-#            scheduled = now.replace(hour=((now.hour+1)%24), minute=0, second=0, microsecond=0)
-            # Start next minute
-#            scheduled = now.replace(minute=(now.minute+1), second=0, microsecond=0)
+                scheduled = scheduled_at[0] + timedelta(days=1)
 
             # Countdown
             countdown = scheduled - now
