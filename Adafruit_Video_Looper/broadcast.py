@@ -11,8 +11,8 @@ class Router:
 
     def __init__(self, config):
         # Load config
-        self.host = config.get('osc', 'host')
-        self.port = config.getint('osc', 'port')
+        self.host = config.get('router', 'host')
+        self.port = config.getint('router', 'port')
         # Listen and route /addresses
         self.dispatcher = Dispatcher()
         self.dispatcher.map('/ping', self._print_ping)
