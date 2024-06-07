@@ -19,6 +19,7 @@ import RPi.GPIO as GPIO
 from .alsa_config import parse_hw_device
 from .model import Playlist, Movie
 from .playlist_builders import build_playlist_m3u
+from .broadcast import Router
 
 # Basic video looper architecure:
 #
@@ -114,6 +115,10 @@ class VideoLooper:
         self._playbackStopped = not self._play_on_startup
         #used for not waiting the first time
         self._firstStart = True
+        # Set up broadcast
+        self._broadcast = Router(self._config)
+        self._broadcast.map('/pong', self._broadcast_pong)
+        self._broadcast.run()
 
         # start keyboard handler thread:
         # Event handling for key press, if keyboard control is enabled
@@ -131,6 +136,9 @@ class VideoLooper:
                 self._print("gpio_pin_map setting is not valid and/or error with GPIO setup")
         else:
             self._pinMap = None
+
+    def _broadcast_pong(self, unused_addr):
+        self._print('*pong*')
 
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
