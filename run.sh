@@ -1,17 +1,37 @@
-#!/bin/sh
+#!/bin/bash
 
-# Error out if anything fails.
-set -e
+echo
+echo 'Käivitame videmängija..'
+echo
 
-# Make sure script is run as root.
-if [ "$(id -u)" != "0" ]; then
-  echo "Must be run as root with sudo! Try: sudo ./run.sh"
-  exit 1
+#
+# Moondume
+#
+
+source ~/.profile
+
+#
+# Jaam
+#
+
+session='looper'
+
+tmux has-session -t $session 2>/dev/null
+
+if [ $? == 0 ]
+then
+	echo 'Videomängija töötab.'
+else
+	tmux new -d -s $session
+	tmux send -t $session 'cd ~/pi_video_looper' ENTER
+	tmux send -t $session 'sudo python3 -u -m Adafruit_Video_Looper.video_looper' ENTER
+	echo 'Videomängija käivitatud..'
 fi
 
-echo "Running video_looper program..."
-echo "=================================="
+#
+# valma
+#
 
-python3 -u -m Adafruit_Video_Looper.video_looper
-
-echo "Finished!"
+echo
+echo 'Valma.'
+echo

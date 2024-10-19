@@ -17,7 +17,7 @@ from pythonosc import osc_server, udp_client
 
 class CloudReader:
 
-    def __init__(self, config_parent, config_path='/home/pi/pi_video_looper/assets/video_cloud.ini'):
+    def __init__(self, config_parent, config_path='/boot/video_cloud.ini'):
         """Create an instance of a file reader that renders needed videos in the cloud."""
 
         # Load config
@@ -36,6 +36,7 @@ class CloudReader:
         # Listen and route /addresses
         self._dispatcher = Dispatcher()
         self._dispatcher.map(f'/connect', self._cmd_connect)
+        self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
         self._dispatcher.set_default_handler(self._cmd_default)
         self._connect()
@@ -94,8 +95,8 @@ class CloudReader:
         }
 
         # Save
-#        with open(config_path, 'w') as cfg:
-#            config.write(cfg)
+        with open(config_path, 'w') as cfg:
+            config.write(cfg)
 
         self._print(f'Cloud configuration saved to {config_path}')
 
@@ -127,8 +128,15 @@ class CloudReader:
             # Ping until done
             while True:
 
-                # How are we doin'?
-                self._cloud.send_message('/status', [self._cloud_job_id])
+                try:
+
+                    # How are we doin'?
+                    self._cloud.send_message('/status', [self._cloud_job_id])
+
+                except socket.error as err:
+                    self._print('Error: ', err)
+                    time.sleep(self._cloud_update_freq)
+                    continue
 
                 # A response!
                 if reply := next(self._cloud.get_messages(5)):
@@ -264,13 +272,29 @@ class CloudReader:
 
         self._save_config(self._config, self._config_path)
 
+    def _cmd_purge(self, addr):
+        self._print(f'@purge: {addr}')
+
+        for f in Path(self._path).iterdir():
+            if (
+                f.is_file()
+                and (
+                    f.suffix == '.hidden'
+                    or
+                    f.suffix[1:] in self._extensions
+                )
+            ):
+                self._print(f'Deleting {f.as_posix()} ..')
+                f.unlink()
+
     def _cmd_update(self, addr, w, h, x, y, q):
         self._print(f'@update: {addr} {w} {h} {x} {y} {q}')
 
         # Do we need to re-render?
         render = False
         if (
-            self._width != w
+            not self.count_files()
+            or self._width != w
             or self._height != h
             or self._x != x
             or self._y != y
