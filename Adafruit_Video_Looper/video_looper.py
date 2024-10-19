@@ -19,7 +19,6 @@ import RPi.GPIO as GPIO
 from .alsa_config import parse_hw_device
 from .model import Playlist, Movie
 from .playlist_builders import build_playlist_m3u
-from .broadcast import Router
 
 # Basic video looper architecure:
 #
@@ -115,10 +114,6 @@ class VideoLooper:
         self._playbackStopped = not self._play_on_startup
         #used for not waiting the first time
         self._firstStart = True
-        # Set up broadcast
-        self._broadcast = Router(self._config)
-        self._broadcast.map('/pong', self._broadcast_pong)
-        self._broadcast.run()
 
         # start keyboard handler thread:
         # Event handling for key press, if keyboard control is enabled
@@ -137,14 +132,11 @@ class VideoLooper:
         else:
             self._pinMap = None
 
-    def _broadcast_pong(self, unused_addr):
-        self._print('*pong*')
-
     def _print(self, message):
         """Print message to standard output if console output is enabled."""
         if self._console_output:
             now = datetime.now()
-            print("[{}] {}".format(now, message))
+            print("[{}] {}".format(now, message).ljust(50-len(message)))
 
     def _load_player(self):
         """Load the configured video player and return an instance of it."""

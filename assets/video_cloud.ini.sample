@@ -1,0 +1,16 @@
+[cloud]
+host = 0.0.0.0
+port = 54321
+
+[router]
+host = 0.0.0.0
+port = 12345
+
+[screen]
+id = 1
+x = 0
+y = 0
+width = 1920
+height = 1080
+quality = 4k
+
