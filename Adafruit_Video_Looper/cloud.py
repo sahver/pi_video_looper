@@ -4,9 +4,11 @@
 # License: GNU GPLv2, see LICENSE.txt
 
 import configparser
+import ffmpeg
 import os
 import pygame
 import random
+import re
 import requests
 import socket
 import threading
@@ -18,6 +20,8 @@ from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server, udp_client
 
 class CloudReader:
+
+    REGEX_GENRE = re.compile(r'^x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):q=(?P<q>.+)$')
 
     def __init__(self, config_parent, config_path='/boot/video_cloud.ini'):
         """Create an instance of a file reader that renders needed videos in the cloud."""
@@ -216,8 +220,8 @@ class CloudReader:
 
                         # Do we have it already?
                         if out.exists():
-                            self._print(f'Renaming {out.as_posix()} -> {out.parent / out.stem} ..')
-                            out.rename(out.parent / out.stem)
+                            self._print(f'Already cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+                            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
 
                         # If not, then download
                         else:
@@ -263,8 +267,8 @@ class CloudReader:
                                             pygame.display.update()
 
                             # Download done.
-                            self._print(f'Renaming {out.as_posix()} -> {out.parent / out.stem} ..')
-                            out.rename(out.parent / out.stem)
+                            self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+                            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
                             self._print(f'✓')
 
                         # Job done.
@@ -374,9 +378,23 @@ class CloudReader:
     def _hide_files(self):
         for ext in self._extensions:
             for f in Path(self._path).glob(f'**/*.{ext}'):
-#                query = ffmpeg.probe(f.as_posix())
-#                print(query)
-                f.rename(f'{f.as_posix()}.hidden')
+                query = ffmpeg.probe(f.as_posix())
+
+                # Rename based on metadata
+                if (
+                    'format' in query
+                    and 'tags' in query['format']
+                    and 'genre' in query['format']['tags']
+                ):
+                    if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
+                        filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}{f.suffix}.hidden"
+                        self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
+                        f.rename(f.parent / filename)
+
+                # Delete if required metadata is missing
+                else:
+                    self._print(f'Failis {f.as_posix()} pole vajalikke metaandmeid, kustutame.')
+                    f.unlink()
 
     def _print(self, message=None, end='\n'):
         if self._console_output:
