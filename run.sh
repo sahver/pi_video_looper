@@ -10,6 +10,10 @@ echo
 
 source ~/.profile
 
+# Tmuxile teadmiseks
+export SHELL=/bin/bash
+
+
 #
 # Jaam
 #

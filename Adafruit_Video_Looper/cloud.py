@@ -6,7 +6,9 @@
 import configparser
 import os
 import pygame
+import random
 import requests
+import socket
 import threading
 import time
 
@@ -36,6 +38,7 @@ class CloudReader:
         # Listen and route /addresses
         self._dispatcher = Dispatcher()
         self._dispatcher.map(f'/connect', self._cmd_connect)
+        self._dispatcher.map(f'/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
         self._dispatcher.set_default_handler(self._cmd_default)
@@ -106,18 +109,34 @@ class CloudReader:
         thread.start()
         self._print('Router listening at {}:{}'.format(self._router_host, self._router_port))
 
+    def _wait_for_cloud_reply(self, addr, args):
+
+        reply = None
+
+        for i in range(5):
+
+            self._cloud.send_message(addr, args)
+
+            try:
+                reply = next(self._cloud.get_messages(5))
+                break
+            except socket.timeout as err:
+                self._print(f'Error: {err}')
+                time.sleep(5 + random.random())
+
+        # Nonii
+        return str(reply).strip() if reply else None
+
     def _render(self):
         self._print(f'@render')
 
         # Reset and start cloud render
         self._cloud_job_id = None
-        self._cloud.send_message('/queue', [self._id, self._width, self._height, self._x, self._y, self._quality])
+#        self._cloud.send_message('/queue', [self._id, self._width, self._height, self._x, self._y, self._quality])
 
         # Wait for response
-        if reply := next(self._cloud.get_messages(5)):
-
-            reply = str(reply).strip()
-#            self._print(f'{reply}')
+        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._width, self._height, self._x, self._y, self._quality]):
+            self._print(f'{reply}')
             
             self._cloud_job_id = reply.split('=')[-1]
             self._print(f'Job {self._cloud_job_id} added to queue.')
@@ -128,21 +147,14 @@ class CloudReader:
             # Ping until done
             while True:
 
-                try:
-
-                    # How are we doin'?
-                    self._cloud.send_message('/status', [self._cloud_job_id])
-
-                except socket.error as err:
-                    self._print('Error: ', err)
-                    time.sleep(self._cloud_update_freq)
-                    continue
+                # How are we doin'?
+#                self._cloud.send_message('/status', [self._cloud_job_id])
 
                 # A response!
-                if reply := next(self._cloud.get_messages(5)):
+                if reply := self._wait_for_cloud_reply('/status', [self._cloud_job_id]):
                     
-#                    self._print(f'{self._cloud_job_id}: {reply}')
-                    key, val = str(reply).strip().split('=', 1)
+                    self._print(f'{self._cloud_job_id}: {reply}')
+                    key, val = reply.split('=', 1)
 
 #                    match key:
 
@@ -150,13 +162,16 @@ class CloudReader:
                     if key == 'queue':
 
                         # bg
-                        screen.fill((255, 0, 0))
+                        screen.fill((0, 0, 255))
 
                         # #
                         label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
                         lw, lh = label.get_size()
                         sw, sh = screen.get_size()
                         screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
+
+                        # show
+                        pygame.display.update()
 
                     # Progress
                     elif key == '%':
@@ -168,23 +183,28 @@ class CloudReader:
                         screen.fill((255, 0, 0))
 
                         # progress
-                        pygame.draw.rect(
-                            screen,
-                            (0, 255, 0),
-                            pygame.Rect(0, 0, int( pygame.display.Info().current_w*pos ), pygame.display.Info().current_h)
-                        )
+                        if pos > 0:
+                            pygame.draw.rect(
+                                screen,
+                                (0, 255, 0),
+                                pygame.Rect(0, 0, int( pygame.display.Info().current_w*pos ), pygame.display.Info().current_h)
+                            )
 
-                        # %
-                        label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
-                        lw, lh = label.get_size()
-                        sw, sh = screen.get_size()
-                        screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
+                            # %
+                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
+                            lw, lh = label.get_size()
+                            sw, sh = screen.get_size()
+                            screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
                         
                         # show
                         pygame.display.update()
 
                     # Download
-                    elif key == 'file':
+                    elif key == 'ready':
+
+                        # bg
+                        screen.fill((0, 255, 0))
+                        pygame.display.update()
 
                         # Save from
                         url = f'http://{self._cloud_host}:{self._cloud_port-1}/{val}'
@@ -267,10 +287,13 @@ class CloudReader:
     def _cmd_connect(self, addr, host, port):
         self._print(f'@connect: {addr} {host} {port}')
 
-        self._cloud_host = host
-        self._cloud_port = port
-
-        self._save_config(self._config, self._config_path)
+        if (
+            self._cloud_host != host
+            or self._cloud_port != port
+        ):
+            self._cloud_host = host
+            self._cloud_port = port
+            self._save_config(self._config, self._config_path)
 
     def _cmd_purge(self, addr):
         self._print(f'@purge: {addr}')
@@ -351,6 +374,8 @@ class CloudReader:
     def _hide_files(self):
         for ext in self._extensions:
             for f in Path(self._path).glob(f'**/*.{ext}'):
+#                query = ffmpeg.probe(f.as_posix())
+#                print(query)
                 f.rename(f'{f.as_posix()}.hidden')
 
     def _print(self, message=None, end='\n'):
