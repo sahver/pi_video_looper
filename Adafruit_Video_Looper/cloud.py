@@ -197,7 +197,7 @@ class CloudReader:
                         screen.fill((0, 0, 255))
 
                         # #
-                        label = pygame.font.Font(None, 250).render(f'{"| " * int(val)}', True, (255, 0, 0))
+                        label = pygame.font.Font(None, 250).render(f'{"|" * int(val)}', True, (255, 0, 0))
                         #label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
                         lw, lh = label.get_size()
                         sw, sh = screen.get_size()
