@@ -2,15 +2,17 @@
 host = 0.0.0.0
 port = 54321
 
+[crop]
+x = 0
+y = 0
+width = 0
+height = 0
+quality = 4k
+
 [router]
 host = 0.0.0.0
 port = 12345
 
 [screen]
 id = 0
-x = 0
-y = 0
-width = 1920
-height = 1080
-quality = 4k
-
+resolution = WxH

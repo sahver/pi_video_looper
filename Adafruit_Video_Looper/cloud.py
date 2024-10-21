@@ -10,6 +10,7 @@ import pygame
 import random
 import re
 import requests
+import signal
 import socket
 import threading
 import time
@@ -39,13 +40,23 @@ class CloudReader:
                                  .split(',')
         self._filecount = self.count_files()
 
-        # Listen and route /addresses
+        # Route /addresses
         self._dispatcher = Dispatcher()
+
         self._dispatcher.map(f'/connect', self._cmd_connect)
+        self._dispatcher.map(f'/pull', self._cmd_pull)
         self._dispatcher.map(f'/purge', self._cmd_purge)
+        self._dispatcher.map(f'/quit', self._cmd_quit)
+        
+        self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
+        self._dispatcher.map(f'/{self._id}/quit', self._cmd_quit)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
+        
         self._dispatcher.set_default_handler(self._cmd_default)
+
+        # Listen
+        self._server = None
         self._connect()
 
         # Cloud renderer
@@ -63,17 +74,20 @@ class CloudReader:
         self._cloud_host = config.get('cloud', 'host')
         self._cloud_port = config.getint('cloud', 'port')
 
+        # Crop
+        self._crop_x = config.getfloat('crop', 'x')
+        self._crop_y = config.getfloat('crop', 'y')
+        self._crop_w = config.getfloat('crop', 'width')
+        self._crop_h = config.getfloat('crop', 'height')
+        self._quality = config.get('crop', 'quality')
+
         # Router
         self._router_host = config.get('router', 'host')
         self._router_port = config.getint('router', 'port')
 
         # Screen
         self._id = config.getint('screen', 'id')
-        self._x = config.getfloat('screen', 'x')
-        self._y = config.getfloat('screen', 'y')
-        self._width = config.getfloat('screen', 'width')
-        self._height = config.getfloat('screen', 'height')
-        self._quality = config.get('screen', 'quality')
+        self._resolution = config.get('screen', 'resolution')
 
         return config
 
@@ -81,24 +95,29 @@ class CloudReader:
 
         # Cloud
         config['cloud'] = {
-            'host'      : self._cloud_host,
-            'port'      : self._cloud_port,
+            'host'          : self._cloud_host,
+            'port'          : self._cloud_port,
+        }
+
+        # Crop
+        config['crop'] = {
+            'x'             : self._crop_x,
+            'y'             : self._crop_y,
+            'width'         : self._crop_w,
+            'height'        : self._crop_h,
+            'quality'       : self._quality,
         }
 
         # Router
         config['router'] = {
-            'host'      : self._router_host,
-            'port'      : self._router_port,
+            'host'          : self._router_host,
+            'port'          : self._router_port,
         }
 
         # Screen
         config['screen'] = {
-            'id'        : self._id,
-            'x'         : self._x,
-            'y'         : self._y,
-            'width'     : self._width,
-            'height'    : self._height,
-            'quality'   : self._quality,
+            'id'            : self._id,
+            'resolution'    : self._resolution
         }
 
         # Save
@@ -108,8 +127,8 @@ class CloudReader:
         self._print(f'Cloud configuration saved to {config_path}')
 
     def _connect(self):
-        server = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
-        thread = threading.Thread(target=server.serve_forever)
+        self._server = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
+        thread = threading.Thread(target=self._server.serve_forever)
         thread.start()
         self._print('Router listening at {}:{}'.format(self._router_host, self._router_port))
 
@@ -136,10 +155,10 @@ class CloudReader:
 
         # Reset and start cloud render
         self._cloud_job_id = None
-#        self._cloud.send_message('/queue', [self._id, self._width, self._height, self._x, self._y, self._quality])
+#        self._cloud.send_message('/queue', [self._id, self._crop_w, self._crop_h, self._crop_x, self._crop_y, self._quality])
 
         # Wait for response
-        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._width, self._height, self._x, self._y, self._quality]):
+        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._quality, self._resolution]):
             self._print(f'{reply}')
             
             self._cloud_job_id = reply.split('=')[-1]
@@ -169,7 +188,8 @@ class CloudReader:
                         screen.fill((0, 0, 255))
 
                         # #
-                        label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
+                        label = pygame.font.Font(None, 250).render(f'{"| " * int(val)}', True, (255, 0, 0))
+                        #label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
                         lw, lh = label.get_size()
                         sw, sh = screen.get_size()
                         screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
@@ -246,13 +266,15 @@ class CloudReader:
                                             self._print(f'{val}: {int(pos*100)}%')
 
                                             # bg
-                                            screen.fill((0, 255-int(255*pos), 0))
+                                            screen.fill((0, 255, 0))
+#                                            screen.fill((0, 255-int(255*pos), 0))
 
                                             # progress
                                             if pos > 0:
                                                 pygame.draw.rect(
                                                     screen,
-                                                    (255-int(255*pos), 255-int(255*pos), 255-int(255*pos)),
+                                                    (255, 255, 255),
+#                                                    (255-int(255*pos), 255-int(255*pos), 255-int(255*pos)),
 #                                                    (0, 0, 255-int(255*pos)),
                                                     pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
                                                 )
@@ -299,6 +321,16 @@ class CloudReader:
             self._cloud_port = port
             self._save_config(self._config, self._config_path)
 
+    def _cmd_pull(self, addr):
+        self._print(f'@pull: {addr}')
+
+        # Task
+        out = Path.cwd() / '.cloud_pull'
+        out.write_text(str(datetime.now()))
+
+        # Quit
+        self._cmd_quit(addr)
+
     def _cmd_purge(self, addr):
         self._print(f'@purge: {addr}')
 
@@ -314,25 +346,30 @@ class CloudReader:
                 self._print(f'Deleting {f.as_posix()} ..')
                 f.unlink()
 
-    def _cmd_update(self, addr, w, h, x, y, q):
-        self._print(f'@update: {addr} {w} {h} {x} {y} {q}')
+    def _cmd_quit(self, addr):
+        self._print(f'@quit: {addr}')
+        self._server.shutdown()
+        os.kill(os.getpid(), signal.SIGINT)
+
+    def _cmd_update(self, addr, w, h, x, y, rw, rh, q):
+        self._print(f'@update: {addr} {w} {h} {x} {y} {rw} {rh} {q}')
 
         # Do we need to re-render?
         render = False
         if (
             not self.count_files()
-            or self._width != w
-            or self._height != h
-            or self._x != x
-            or self._y != y
+            or self._crop_w != w
+            or self._crop_h != h
+            or self._crop_x != x
+            or self._crop_y != y
             or self._quality != q
         ): render = True
 
         # Save
-        self._width = w
-        self._height = h
-        self._x = x
-        self._y = y
+        self._crop_w = w
+        self._crop_h = h
+        self._crop_x = x
+        self._crop_y = y
         self._quality = q
 
         self._save_config(self._config, self._config_path)
