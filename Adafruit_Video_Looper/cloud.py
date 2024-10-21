@@ -363,8 +363,8 @@ class CloudReader:
         # Quit
         self._cmd_quit(addr)
 
-    def _cmd_update(self, addr, w, h, x, y, rw, rh, q):
-        self._print(f'@update: {addr} {w} {h} {x} {y} {rw} {rh} {q}')
+    def _cmd_update(self, addr, x, y, w, h, rw, rh, q):
+        self._print(f'@update: {addr} {x} {y} {w} {h} {rw} {rh} {q}')
 
         # Do we need to re-render?
         render = False
@@ -383,6 +383,7 @@ class CloudReader:
         self._crop_x = x
         self._crop_y = y
         self._quality = q
+        self._resolution = f'{int(rw)}x{int(rh)}'
 
         self._save_config(self._config, self._config_path)
 
