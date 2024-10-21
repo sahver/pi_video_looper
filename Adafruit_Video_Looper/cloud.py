@@ -153,7 +153,7 @@ class CloudReader:
         return str(reply).strip() if reply else None
 
     def _get_scattered_update_freq(self):
-        return (self._cloud_update_freq*0.75) + ( (self._cloud_update_freq*0.5) * random.random() )
+        return (self._cloud_update_freq*0.9) + ( (self._cloud_update_freq*0.2) * random.random() )
 
     #
     # ** RENDERING **
@@ -193,16 +193,35 @@ class CloudReader:
                     # Queue
                     if key == 'queue':
 
+                        val = int(val)
+
                         # bg
                         screen.fill((0, 0, 255))
 
                         # #
-                        label = pygame.font.Font(None, 250).render(f'{"|" * int(val)}', True, (255, 0, 0))
+                        label = pygame.font.Font(None, 250).render(f'{"|" * val}', True, (255, 0, 0))
                         #label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
                         lw, lh = label.get_size()
                         sw, sh = screen.get_size()
                         screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
 
+                        # show
+                        pygame.display.update()
+
+                    # Loading
+                    elif key == '?':
+
+                        val = int(val)
+
+                        # bg
+                        screen.fill((255, 0, 0))
+
+                        # loading
+                        label = pygame.font.Font(None, 250).render(f'{" " * (val%5)}|{" " * (4-val%5)}', True, (0, 0, 0))
+                        lw, lh = label.get_size()
+                        sw, sh = screen.get_size()
+                        screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
+                        
                         # show
                         pygame.display.update()
 
