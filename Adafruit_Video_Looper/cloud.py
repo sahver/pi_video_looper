@@ -289,7 +289,7 @@ class CloudReader:
                                                 )
 
                                             # %
-                                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (255, 255, 255))
+                                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
                                             lw, lh = label.get_size()
                                             sw, sh = screen.get_size()
                                             screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
