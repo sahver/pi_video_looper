@@ -109,6 +109,7 @@ class VideoLooper:
         self._small_font = pygame.font.Font(None, 50)
         self._medium_font   = pygame.font.Font(None, 96)
         self._big_font   = pygame.font.Font(None, 250)
+        self._huge_font = pygame.font.Font(None, 500)
         self._running    = True
         # set the inital playback state according to the startup setting.
         self._playbackStopped = not self._play_on_startup
@@ -379,7 +380,7 @@ class VideoLooper:
         if not self._osd:
             return
         # Display idle message in center of screen.
-        label = self._render_text(message)
+        label = self._render_text(message, self._huge_font)
         lw, lh = label.get_size()
         sw, sh = self._screen.get_size()
         self._screen.fill(self._bgcolor)

@@ -413,7 +413,7 @@ class CloudReader:
     def idle_message(self):
         """Return a message to display when idle and no files are found."""
 #        print('** idle_message()')
-        return f'#{self._id}'
+        return f'{self._id}'
 
     def count_files(self):
 #        print('** count_files()')
