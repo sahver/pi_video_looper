@@ -282,14 +282,14 @@ class CloudReader:
                                             if pos > 0:
                                                 pygame.draw.rect(
                                                     screen,
-                                                    (255, 255, 255),
+                                                    (0, 0, 0),
 #                                                    (255-int(255*pos), 255-int(255*pos), 255-int(255*pos)),
 #                                                    (0, 0, 255-int(255*pos)),
                                                     pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
                                                 )
 
                                             # %
-                                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
+                                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (255, 255, 255))
                                             lw, lh = label.get_size()
                                             sw, sh = screen.get_size()
                                             screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
