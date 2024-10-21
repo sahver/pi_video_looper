@@ -46,11 +46,13 @@ class CloudReader:
         self._dispatcher.map(f'/connect', self._cmd_connect)
         self._dispatcher.map(f'/pull', self._cmd_pull)
         self._dispatcher.map(f'/purge', self._cmd_purge)
+        self._dispatcher.map(f'/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/quit', self._cmd_quit)
         
         self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/quit', self._cmd_quit)
+        self._dispatcher.map(f'/{self._id}/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
         
         self._dispatcher.set_default_handler(self._cmd_default)
@@ -325,7 +327,7 @@ class CloudReader:
         self._print(f'@pull: {addr}')
 
         # Task
-        out = Path.cwd() / '.cloud_pull'
+        out = Path.cwd() / '.cloud.pull'
         out.write_text(str(datetime.now()))
 
         # Quit
@@ -350,6 +352,16 @@ class CloudReader:
         self._print(f'@quit: {addr}')
         self._server.shutdown()
         os.kill(os.getpid(), signal.SIGINT)
+
+    def _cmd_reboot(self, addr):
+        self._print(f'@reboot: {addr}')
+
+        # Task
+        out = Path.cwd() / '.cloud.reboot'
+        out.write_text(str(datetime.now()))
+
+        # Quit
+        self._cmd_quit(addr)
 
     def _cmd_update(self, addr, w, h, x, y, rw, rh, q):
         self._print(f'@update: {addr} {w} {h} {x} {y} {rw} {rh} {q}')
