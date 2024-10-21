@@ -143,14 +143,21 @@ class CloudReader:
             self._cloud.send_message(addr, args)
 
             try:
-                reply = next(self._cloud.get_messages(5))
+                reply = next(self._cloud.get_messages(self._get_scattered_update_freq()))
                 break
             except socket.timeout as err:
                 self._print(f'Error: {err}')
-                time.sleep(5 + random.random())
+                time.sleep(self._get_scattered_update_freq())
 
         # Nonii
         return str(reply).strip() if reply else None
+
+    def _get_scattered_update_freq(self):
+        return (self._cloud_update_freq*0.75) + ( (self._cloud_update_freq*0.5) * random.random() )
+
+    #
+    # ** RENDERING **
+    #
 
     def _render(self):
         self._print(f'@render')
@@ -259,7 +266,7 @@ class CloudReader:
 
                                         now = datetime.now().timestamp()
 
-                                        if (now - then) > self._cloud_update_freq: 
+                                        if (now - then) > self._get_scattered_update_freq(): 
 
                                             then = now
 
@@ -300,7 +307,7 @@ class CloudReader:
                         break
 
                 # Pause
-                time.sleep(self._cloud_update_freq)
+                time.sleep(self._get_scattered_update_freq())
 
         # Confirm
         self._print('@render done.')
