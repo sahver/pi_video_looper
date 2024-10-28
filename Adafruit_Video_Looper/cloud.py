@@ -22,7 +22,7 @@ from pythonosc import osc_server, udp_client
 
 class CloudReader:
 
-    REGEX_GENRE = re.compile(r'^x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):q=(?P<q>.+)$')
+    REGEX_GENRE = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+)$')
 
     def __init__(self, config_parent, config_path='/boot/video_cloud.ini'):
         """Create an instance of a file reader that renders needed videos in the cloud."""
@@ -66,6 +66,11 @@ class CloudReader:
         self._cloud_job_id = None
         self._cloud_update_freq = 0.5
 
+        # Drawing
+        self._display = pygame.display.get_surface()
+        self._display_w, self._display_h = self._display.get_size()
+
+
     def _load_config(self, config_path, config_parent):
 
         config = configparser.ConfigParser()
@@ -89,7 +94,8 @@ class CloudReader:
 
         # Screen
         self._id = config.getint('screen', 'id')
-        self._resolution = config.get('screen', 'resolution')
+        self._screen_w = config.getint('screen', 'width')
+        self._screen_h = config.getint('screen', 'height')
 
         return config
 
@@ -119,7 +125,8 @@ class CloudReader:
         # Screen
         config['screen'] = {
             'id'            : self._id,
-            'resolution'    : self._resolution
+            'width'         : self._screen_w,
+            'height'        : self._screen_h,
         }
 
         # Save
@@ -164,23 +171,31 @@ class CloudReader:
 
         # Reset and start cloud render
         self._cloud_job_id = None
-#        self._cloud.send_message('/queue', [self._id, self._crop_w, self._crop_h, self._crop_x, self._crop_y, self._quality])
 
         # Wait for response
-        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._quality, self._resolution]):
-            self._print(f'{reply}')
-            
-            self._cloud_job_id = reply.split('=')[-1]
-            self._print(f'Job {self._cloud_job_id} added to queue.')
+        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._screen_w, self._screen_h, self._quality]):
 
-            # Draw
-            screen = pygame.display.get_surface()
+            # Something will change, so be ready
+            self._hide_files()
+
+            # Reply
+            self._print(f'{reply}')
+            key, val = reply.split('=', 1)
+
+            # Already exists in the cloud
+            if key == 'ready':
+                self._display_download(val)
+                return
+
+            #
+            # Lesgo!
+            #
+
+            self._cloud_job_id = val
+            self._print(f'Job {self._cloud_job_id} added to queue.')
 
             # Ping until done
             while True:
-
-                # How are we doin'?
-#                self._cloud.send_message('/status', [self._cloud_job_id])
 
                 # A response!
                 if reply := self._wait_for_cloud_reply('/status', [self._cloud_job_id]):
@@ -192,134 +207,21 @@ class CloudReader:
 
                     # Queue
                     if key == 'queue':
-
-                        val = int(val)
-
-                        # bg
-                        screen.fill((0, 0, 255))
-
-                        # #
-                        label = pygame.font.Font(None, 250).render(f'{"|" * val}', True, (255, 0, 0))
-                        #label = pygame.font.Font(None, 250).render(f'q={val}', True, (255, 255, 255))
-                        lw, lh = label.get_size()
-                        sw, sh = screen.get_size()
-                        screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
-
-                        # show
-                        pygame.display.update()
+                        self._display_queue( int(val) )
 
                     # Loading
                     elif key == '?':
-
-                        val = int(val)
-
-                        # bg
-                        screen.fill((255, 0, 0))
-
-                        # loading
-                        label = pygame.font.Font(None, 250).render(f'{" " * (val%5)}|{" " * (4-val%5)}', True, (0, 0, 0))
-                        lw, lh = label.get_size()
-                        sw, sh = screen.get_size()
-                        screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
-                        
-                        # show
-                        pygame.display.update()
+                        self._display_loading( int(val) )
 
                     # Progress
                     elif key == '%':
-
-                        pos = float(val)
-                        self._print(f'{self._cloud_job_id}: {pos*100:.1f}%')
-
-                        # bg
-                        screen.fill((255, 0, 0))
-
-                        # progress
-                        if pos > 0:
-                            pygame.draw.rect(
-                                screen,
-                                (0, 255, 0),
-                                pygame.Rect(0, 0, int( pygame.display.Info().current_w*pos ), pygame.display.Info().current_h)
-                            )
-
-                            # %
-                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
-                            lw, lh = label.get_size()
-                            sw, sh = screen.get_size()
-                            screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
-                        
-                        # show
-                        pygame.display.update()
+                        self._display_progress( float(val) )
 
                     # Download
                     elif key == 'ready':
 
-                        # bg
-                        screen.fill((0, 255, 0))
-                        pygame.display.update()
-
-                        # Save from
-                        url = f'http://{self._cloud_host}:{self._cloud_port-1}/{val}'
-                        # Save to
-                        out = Path(self._path) / val
-                        out = out.with_suffix(out.suffix + '.hidden')
-                        # Create dirs if needed
-                        out.parent.mkdir(parents=True, exist_ok=True)
-
-                        # Do we have it already?
-                        if out.exists():
-                            self._print(f'Already cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
-                            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
-
-                        # If not, then download
-                        else:
-                            self._print(f'Downloading {url} ..')
-                            with open(out, 'wb') as f:
-                                with requests.get(url, stream=True) as r:
-                                    r.raise_for_status()
-                                    block_size = 1024
-                                    file_size = int(r.headers.get('content-length', None))
-                                    now = then = datetime.now().timestamp()
-                                    for i, chunk in enumerate(r.iter_content(chunk_size=block_size)):
-                                        f.write(chunk)
-
-                                        now = datetime.now().timestamp()
-
-                                        if (now - then) > self._get_scattered_update_freq(): 
-
-                                            then = now
-
-                                            # Clamp to 100%
-                                            pos = min( (i * block_size)/file_size, 1 )
-                                            self._print(f'{val}: {int(pos*100)}%')
-
-                                            # bg
-                                            screen.fill((0, 255, 0))
-#                                            screen.fill((0, 255-int(255*pos), 0))
-
-                                            # progress
-                                            if pos > 0:
-                                                pygame.draw.rect(
-                                                    screen,
-                                                    (0, 0, 0),
-#                                                    (255-int(255*pos), 255-int(255*pos), 255-int(255*pos)),
-#                                                    (0, 0, 255-int(255*pos)),
-                                                    pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
-                                                )
-
-                                            # %
-                                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
-                                            lw, lh = label.get_size()
-                                            sw, sh = screen.get_size()
-                                            screen.blit(label, (sw/2-lw/2, sh/2-lh/2))
-                                            
-                                            # show
-                                            pygame.display.update()
-
-                            # Download done.
-                            self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
-                            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
-                            self._print(f'✓')
+                        # Download
+                        self._display_download(val)
 
                         # Job done.
                         self._cloud_job_id = None
@@ -332,6 +234,129 @@ class CloudReader:
         self._print('@render done.')
 
     #
+    # UI
+    #
+
+    def _display_download(self, file):
+
+        # Save to
+        out = Path(self._path) / file
+        out = out.with_suffix(out.suffix + '.hidden')
+
+        # Do we have it already?
+        if out.exists():
+            self._print(f'Already cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
+
+        # If not, then download
+        else:
+
+            # bg
+            self._display.fill((0, 255, 0))
+            pygame.display.update()
+
+            # Save from
+            url = f'http://{self._cloud_host}:{self._cloud_port-1}/{file}'
+
+            # Create dirs if needed
+            out.parent.mkdir(parents=True, exist_ok=True)
+
+            # Start download
+            self._print(f'Downloading {url} ..')
+            with open(out, 'wb') as f:
+                with requests.get(url, stream=True) as r:
+                    r.raise_for_status()
+                    block_size = 1024
+                    file_size = int(r.headers.get('content-length', None))
+                    now = then = datetime.now().timestamp()
+                    for i, chunk in enumerate(r.iter_content(chunk_size=block_size)):
+                        f.write(chunk)
+
+                        now = datetime.now().timestamp()
+
+                        if (now - then) > self._get_scattered_update_freq(): 
+
+                            then = now
+
+                            # Clamp to 100%
+                            pos = min( (i * block_size)/file_size, 1 )
+                            self._print(f'{file}: {int(pos*100)}%')
+
+                            # bg
+                            self._display.fill((0, 255, 0))
+
+                            # progress
+                            if pos > 0:
+                                pygame.draw.rect(
+                                    self._display,
+                                    (0, 0, 0),
+                                    pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
+                                )
+
+                            # %
+                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
+                            lw, lh = label.get_size()
+                            self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+                            
+                            # show
+                            pygame.display.update()
+
+            # Download done.
+            self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
+            self._print(f'✓')
+
+    def _display_progress(self, percentage):
+
+        self._print(f'{self._cloud_job_id}: {percentage*100:.1f}%')
+
+        # bg
+        self._display.fill((255, 0, 0))
+
+        # progress
+        if percentage > 0:
+            pygame.draw.rect(
+                self._display,
+                (0, 255, 0),
+                pygame.Rect(0, 0, int( pygame.display.Info().current_w*percentage ), pygame.display.Info().current_h)
+            )
+
+            # %
+            label = pygame.font.Font(None, 250).render(f'{(percentage*100):3.0f}%', True, (0, 0, 0))
+            lw, lh = label.get_size()
+            self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+        
+        # show
+        pygame.display.update()
+
+
+    def _display_queue(self, counter):
+
+        # bg
+        self._display.fill((0, 0, 255))
+
+        # #
+        label = pygame.font.Font(None, 250).render(f'{"|" * counter}', True, (255, 0, 0))
+        lw, lh = label.get_size()
+        self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+
+        # show
+        pygame.display.update()
+
+    def _display_loading(self, counter):
+
+        # bg
+        self._display.fill((255, 0, 0))
+
+        # loading
+        label = pygame.font.Font(None, 250).render(f'{" " * (counter%5)}|{" " * (4-counter%5)}', True, (0, 0, 0))
+        lw, lh = label.get_size()
+        self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+        
+        # show
+        pygame.display.update()
+
+    #
     # Commands
     #
 
@@ -339,12 +364,11 @@ class CloudReader:
         self._print(f'@: {unused_addr} {args}')
 
     def _cmd_connect(self, addr, host, port):
-        self._print(f'@connect: {addr} {host} {port}')
-
         if (
             self._cloud_host != host
             or self._cloud_port != port
         ):
+            self._print(f'@connect: {addr} {host} {port}')
             self._cloud_host = host
             self._cloud_port = port
             self._save_config(self._config, self._config_path)
@@ -389,8 +413,8 @@ class CloudReader:
         # Quit
         self._cmd_quit(addr)
 
-    def _cmd_update(self, addr, x, y, w, h, rw, rh, q):
-        self._print(f'@update: {addr} {x} {y} {w} {h} {rw} {rh} {q}')
+    def _cmd_update(self, addr, x, y, w, h, sw, sh, q):
+        self._print(f'@update: {addr} {x} {y} {w} {h} {sw} {sh} {q}')
 
         # Do we need to re-render?
         render = False
@@ -409,13 +433,13 @@ class CloudReader:
         self._crop_x = x
         self._crop_y = y
         self._quality = q
-        self._resolution = f'{int(rw)}x{int(rh)}'
+        self._screen_w = sw
+        self._screen_h = sh
 
         self._save_config(self._config, self._config_path)
 
         # Render if needed
         if render and not self._cloud_job_id:
-            self._hide_files()
             self._render()
 
     #
@@ -463,7 +487,7 @@ class CloudReader:
                     and 'genre' in query['format']['tags']
                 ):
                     if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
-                        filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}{f.suffix}.hidden"
+                        filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
                         self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                         f.rename(f.parent / filename)
 

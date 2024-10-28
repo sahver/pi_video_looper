@@ -15,4 +15,5 @@ port = 12345
 
 [screen]
 id = 0
-resolution = WxH
+width = 0
+height = 0
