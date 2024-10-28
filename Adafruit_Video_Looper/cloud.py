@@ -427,7 +427,7 @@ class CloudReader:
             or self._quality != q
         ): render = True
 
-        # Save
+        # Update
         self._crop_w = w
         self._crop_h = h
         self._crop_x = x
@@ -436,6 +436,7 @@ class CloudReader:
         self._screen_w = sw
         self._screen_h = sh
 
+        # Save
         self._save_config(self._config, self._config_path)
 
         # Render if needed
@@ -476,6 +477,7 @@ class CloudReader:
     #
 
     def _hide_files(self):
+        # Hide know files
         for ext in self._extensions:
             for f in Path(self._path).glob(f'**/*.{ext}'):
                 query = ffmpeg.probe(f.as_posix())
@@ -495,6 +497,8 @@ class CloudReader:
                 else:
                     self._print(f'Failis {f.as_posix()} pole vajalikke metaandmeid, kustutame.')
                     f.unlink()
+        # Allow some time for these changes to be discovered
+        time.sleep(1)
 
     def _print(self, message=None, end='\n'):
         if self._console_output:
