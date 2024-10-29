@@ -55,7 +55,7 @@ class CloudReader:
         self._dispatcher.map(f'/{self._id}/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
         
-        self._dispatcher.set_default_handler(self._cmd_default)
+#        self._dispatcher.set_default_handler(self._cmd_print)
 
         # Listen
         self._server = None
@@ -221,7 +221,12 @@ class CloudReader:
 
                     # Queue
                     if key == 'queue':
-                        self._display_queue( int(val) )
+                        if len(val) == 0:
+                            self._print(f'{self._cloud_job_id}: not in queue, stopping.')
+                            self._cloud_job_id = None
+                            break
+                        else:
+                            self._display_queue( int(val) )
 
                     # Loading
                     elif key == '?':
@@ -378,7 +383,7 @@ class CloudReader:
     # Commands
     #
 
-    def _cmd_default(self, unused_addr, *args):
+    def _cmd_print(self, unused_addr, *args):
         self._print(f'@: {unused_addr} {args}')
 
     def _cmd_connect(self, addr, host, port):
