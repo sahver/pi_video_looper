@@ -62,7 +62,7 @@ class CloudReader:
         self._connect()
 
         # Cloud renderer
-        self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
+        self._cloud = None
         self._cloud_job_id = None
         self._cloud_update_freq = 0.5
 
@@ -136,6 +136,12 @@ class CloudReader:
         self._print(f'Cloud configuration saved to {config_path}')
 
     def _connect(self):
+        # If already connected, shutdown first
+        if self._server:
+            self._server.shutdown()
+            self._server = None
+
+        # Connect
         self._server = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
         thread = threading.Thread(target=self._server.serve_forever)
         thread.start()
@@ -145,16 +151,24 @@ class CloudReader:
 
         reply = None
 
-        for i in range(5):
+        # Send
+        self._cloud.send_message(addr, args)
 
-            self._cloud.send_message(addr, args)
+        # Wait for reply
+        for i in range(5):
 
             try:
                 reply = next(self._cloud.get_messages(self._get_scattered_update_freq()))
-                break
+                # Try to get the last message
+#                break
             except socket.timeout as err:
-                self._print(f'Error: {err}')
-                time.sleep(self._get_scattered_update_freq())
+                # No answer yet
+                if not reply:
+                    self._print(f'Error: {err}')
+                    time.sleep(self._get_scattered_update_freq())
+                # We have an answer,
+                # so we should be good
+                else: break
 
         # Nonii
         return str(reply).strip() if reply else None
@@ -183,8 +197,8 @@ class CloudReader:
             key, val = reply.split('=', 1)
 
             # Already exists in the cloud
-            if key == 'ready':
-                self._display_download(val)
+            if key == 'cached':
+                self._display_download(val, use_cache=True)
                 return
 
             #
@@ -237,15 +251,19 @@ class CloudReader:
     # UI
     #
 
-    def _display_download(self, file):
+    def _display_download(self, file, use_cache = False):
 
         # Save to
         out = Path(self._path) / file
         out = out.with_suffix(out.suffix + '.hidden')
 
         # Do we have it already?
-        if out.exists():
-            self._print(f'Already cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+        if use_cache and out.exists():
+            # bg
+            self._display.fill((255, 255, 255))
+            pygame.display.update()
+            # Use cache
+            self._print(f'Locally cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
             out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
 
         # If not, then download
@@ -365,13 +383,18 @@ class CloudReader:
 
     def _cmd_connect(self, addr, host, port):
         if (
-            self._cloud_host != host
+            not self._cloud
+            or self._cloud_host != host
             or self._cloud_port != port
         ):
+            # New cloud server
             self._print(f'@connect: {addr} {host} {port}')
             self._cloud_host = host
             self._cloud_port = port
             self._save_config(self._config, self._config_path)
+            # Connect
+            self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
+            self._print('Connecting to cloud at {}:{}'.format(self._cloud_host, self._cloud_port))
 
     def _cmd_pull(self, addr):
         self._print(f'@pull: {addr}')
@@ -477,27 +500,36 @@ class CloudReader:
     #
 
     def _hide_files(self):
-        # Hide know files
+        # Hide known files
         for ext in self._extensions:
             for f in Path(self._path).glob(f'**/*.{ext}'):
-                query = ffmpeg.probe(f.as_posix())
 
-                # Rename based on metadata
-                if (
-                    'format' in query
-                    and 'tags' in query['format']
-                    and 'genre' in query['format']['tags']
-                ):
-                    if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
-                        filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
-                        self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
-                        f.rename(f.parent / filename)
+                try:
+                    # Get details
+                    query = ffmpeg.probe(f.as_posix())
 
-                # Delete if required metadata is missing
-                else:
-                    self._print(f'Failis {f.as_posix()} pole vajalikke metaandmeid, kustutame.')
+                    # Rename based on metadata
+                    if (
+                        'format' in query
+                        and 'tags' in query['format']
+                        and 'genre' in query['format']['tags']
+                    ):
+                        if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
+                            filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
+                            self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
+                            f.rename(f.parent / filename)
+
+                    # Delete if required metadata is missing
+                    else:
+                        self._print(f'Required metadata not found in {f.as_posix()}, deleting.')
+                        f.unlink()
+                
+                # Problem with the file probably
+                except ffmpeg._run.Error:
+                    self._print(f'Unable to probe {f.as_posix()}, deleting.')
                     f.unlink()
-        # Allow some time for these changes to be discovered
+
+        # Allow some time for changes to be discovered
         time.sleep(1)
 
     def _print(self, message=None, end='\n'):
