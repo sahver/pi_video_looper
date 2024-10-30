@@ -456,15 +456,15 @@ class CloudReader:
             self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
             self._print('Connecting to cloud at {}:{}'.format(self._cloud_host, self._cloud_port))
 
-    def _cmd_diff(self, diff):
-        self._print(f'@diff: {addr}')
+    def _cmd_diff(self, addr, diff):
+        self._print(f'@diff: {addr} {diff}')
         self._player_send(f'%diff={diff}')
 
-    def _cmd_pause(self):
+    def _cmd_pause(self, addr):
         self._print(f'@pause: {addr}')
         self._player_send(f'%pause')
 
-    def _cmd_play(self):
+    def _cmd_play(self, addr):
         self._print(f'@play: {addr}')
         self._player_send(f'%play')
 
