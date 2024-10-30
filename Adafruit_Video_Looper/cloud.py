@@ -20,7 +20,7 @@ from pathlib import Path
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server, udp_client
 
-class CloudReader:
+class CloudGrid:
 
     REGEX_GENRE = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+)$')
 
@@ -594,7 +594,7 @@ class CloudReader:
                         and 'tags' in query['format']
                         and 'genre' in query['format']['tags']
                     ):
-                        if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
+                        if m := CloudGrid.REGEX_GENRE.search(query['format']['tags']['genre']):
                             filename = f"{m.group('q').upper()}_x{m.group('x')}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
                             self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                             f.rename(f.parent / filename)
@@ -622,5 +622,5 @@ class CloudReader:
 
 def create_file_reader(config, screen):
     """Create new file reader based on reading a directory on disk."""
-    return CloudReader(config)
+    return CloudGrid(config)
 
