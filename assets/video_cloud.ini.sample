@@ -9,6 +9,10 @@ width = 0
 height = 0
 quality = 4k
 
+[player]
+port = 1666
+diff = 0
+
 [router]
 host = 0.0.0.0
 port = 12345

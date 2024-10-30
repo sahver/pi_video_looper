@@ -49,6 +49,9 @@ class CloudReader:
         self._dispatcher.map(f'/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/quit', self._cmd_quit)
         
+        self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
+        self._dispatcher.map(f'/{self._id}/pause', self._cmd_pause)
+        self._dispatcher.map(f'/{self._id}/play', self._cmd_play)
         self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/quit', self._cmd_quit)
@@ -57,18 +60,24 @@ class CloudReader:
         
 #        self._dispatcher.set_default_handler(self._cmd_print)
 
-        # Listen
-        self._server = None
-        self._connect()
-
         # Cloud renderer
         self._cloud = None
         self._cloud_job_id = None
         self._cloud_update_freq = 0.5
 
+        # Player
+        self._player = None
+        self._player_connect()
+
+        # Router
+        self._router = None
+        self._router_listen()
+
         # Drawing
         self._display = pygame.display.get_surface()
         self._display_w, self._display_h = self._display.get_size()
+        self._font_huge = pygame.font.Font(None, 500)
+        self._font_big = pygame.font.Font(None, 250)
 
 
     def _load_config(self, config_path, config_parent):
@@ -87,6 +96,10 @@ class CloudReader:
         self._crop_w = config.getfloat('crop', 'width')
         self._crop_h = config.getfloat('crop', 'height')
         self._quality = config.get('crop', 'quality')
+
+        # Player
+        self._player_port = config.getint('player', 'port')
+        self._player_diff = config.getfloat('player', 'diff')
 
         # Router
         self._router_host = config.get('router', 'host')
@@ -116,6 +129,12 @@ class CloudReader:
             'quality'       : self._quality,
         }
 
+        # Player
+        config['player'] = {
+            'port'          : self._player_port,
+            'diff'          : self._player_diff,
+        }
+
         # Router
         config['router'] = {
             'host'          : self._router_host,
@@ -135,19 +154,19 @@ class CloudReader:
 
         self._print(f'Cloud configuration saved to {config_path}')
 
-    def _connect(self):
+    def _router_listen(self):
         # If already connected, shutdown first
-        if self._server:
-            self._server.shutdown()
-            self._server = None
+        if self._router:
+            self._router.shutdown()
+            self._router = None
 
         # Connect
-        self._server = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
-        thread = threading.Thread(target=self._server.serve_forever)
+        self._router = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
+        thread = threading.Thread(target=self._router.serve_forever)
         thread.start()
         self._print('Router listening at {}:{}'.format(self._router_host, self._router_port))
 
-    def _wait_for_cloud_reply(self, addr, args):
+    def _cloud_wait_for_reply(self, addr, args):
 
         reply = None
 
@@ -165,6 +184,7 @@ class CloudReader:
                 # No answer yet
                 if not reply:
                     self._print(f'Error: {err}')
+                    self._display_error(err)
                     time.sleep(self._get_scattered_update_freq())
                 # We have an answer,
                 # so we should be good
@@ -172,6 +192,13 @@ class CloudReader:
 
         # Nonii
         return str(reply).strip() if reply else None
+
+    def _player_connect(self):
+        self._player = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+        self._player.connect(('127.0.0.1', self._player_port))
+
+    def _player_send(self, msg):
+        self._player.sendall((msg).encode('utf-8'))
 
     def _get_scattered_update_freq(self):
         return (self._cloud_update_freq*0.9) + ( (self._cloud_update_freq*0.2) * random.random() )
@@ -187,7 +214,7 @@ class CloudReader:
         self._cloud_job_id = None
 
         # Wait for response
-        if reply := self._wait_for_cloud_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._screen_w, self._screen_h, self._quality]):
+        if reply := self._cloud_wait_for_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._screen_w, self._screen_h, self._quality]):
 
             # Something will change, so be ready
             self._hide_files()
@@ -212,7 +239,7 @@ class CloudReader:
             while True:
 
                 # A response!
-                if reply := self._wait_for_cloud_reply('/status', [self._cloud_job_id]):
+                if reply := self._cloud_wait_for_reply('/status', [self._cloud_job_id]):
                     
                     self._print(f'{self._cloud_job_id}: {reply}')
                     key, val = reply.split('=', 1)
@@ -224,6 +251,7 @@ class CloudReader:
                         if len(val) == 0:
                             self._print(f'{self._cloud_job_id}: not in queue, stopping.')
                             self._cloud_job_id = None
+                            self._display_blank()
                             break
                         else:
                             self._display_queue( int(val) )
@@ -255,6 +283,19 @@ class CloudReader:
     #
     # UI
     #
+
+    def _display_blank(self):
+
+        # bg
+        self._display.fill((255, 255, 255))
+
+        # loading
+        label = self._font_huge.render(self.idle_message(), True, (0, 0, 0))
+        lw, lh = label.get_size()
+        self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+
+        # show
+        pygame.display.update()
 
     def _display_download(self, file, use_cache = False):
 
@@ -317,7 +358,7 @@ class CloudReader:
                                 )
 
                             # %
-                            label = pygame.font.Font(None, 250).render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
+                            label = self._font_big.render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
                             lw, lh = label.get_size()
                             self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
                             
@@ -328,6 +369,20 @@ class CloudReader:
             self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
             out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
             self._print(f'✓')
+
+    def _display_error(self, msg):
+
+        # bg
+        self._display.fill((255, 0, 0))
+
+        # loading
+        label = self._font_big.render(f'"{msg}"', True, (0, 0, 0))
+        lw, lh = label.get_size()
+        self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
+
+        # show
+        pygame.display.update()
+
 
     def _display_progress(self, percentage):
 
@@ -345,7 +400,7 @@ class CloudReader:
             )
 
             # %
-            label = pygame.font.Font(None, 250).render(f'{(percentage*100):3.0f}%', True, (0, 0, 0))
+            label = self._font_big.render(f'{(percentage*100):3.0f}%', True, (0, 0, 0))
             lw, lh = label.get_size()
             self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
         
@@ -359,7 +414,7 @@ class CloudReader:
         self._display.fill((0, 0, 255))
 
         # #
-        label = pygame.font.Font(None, 250).render(f'{"|" * counter}', True, (255, 0, 0))
+        label = self._font_big.render(f'{"|" * counter}', True, (255, 0, 0))
         lw, lh = label.get_size()
         self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
 
@@ -372,7 +427,7 @@ class CloudReader:
         self._display.fill((255, 0, 0))
 
         # loading
-        label = pygame.font.Font(None, 250).render(f'{" " * (counter%5)}|{" " * (4-counter%5)}', True, (0, 0, 0))
+        label = self._font_big.render(f'{" " * (counter%5)}|{" " * (4-counter%5)}', True, (0, 0, 0))
         lw, lh = label.get_size()
         self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
         
@@ -401,6 +456,18 @@ class CloudReader:
             self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
             self._print('Connecting to cloud at {}:{}'.format(self._cloud_host, self._cloud_port))
 
+    def _cmd_diff(self, diff):
+        self._print(f'@diff: {addr}')
+        self._player_send(f'%diff={diff}')
+
+    def _cmd_pause(self):
+        self._print(f'@pause: {addr}')
+        self._player_send(f'%pause')
+
+    def _cmd_play(self):
+        self._print(f'@play: {addr}')
+        self._player_send(f'%play')
+
     def _cmd_pull(self, addr):
         self._print(f'@pull: {addr}')
 
@@ -428,7 +495,7 @@ class CloudReader:
 
     def _cmd_quit(self, addr):
         self._print(f'@quit: {addr}')
-        self._server.shutdown()
+        self._router.shutdown()
         os.kill(os.getpid(), signal.SIGINT)
 
     def _cmd_reboot(self, addr):
@@ -444,8 +511,7 @@ class CloudReader:
     def _cmd_update(self, addr, x, y, w, h, sw, sh, q):
         self._print(f'@update: {addr} {x} {y} {w} {h} {sw} {sh} {q}')
 
-        # Do we need to re-render?
-        render = False
+        # Are there any changes?
         if (
             not self.count_files()
             or self._crop_w != w
@@ -453,23 +519,32 @@ class CloudReader:
             or self._crop_x != x
             or self._crop_y != y
             or self._quality != q
-        ): render = True
+            or self._screen_w != sw
+            or self._screen_h != sh
+        ): 
+            # Update
+            self._crop_w = w
+            self._crop_h = h
+            self._crop_x = x
+            self._crop_y = y
+            self._quality = q
+            self._screen_w = sw
+            self._screen_h = sh
 
-        # Update
-        self._crop_w = w
-        self._crop_h = h
-        self._crop_x = x
-        self._crop_y = y
-        self._quality = q
-        self._screen_w = sw
-        self._screen_h = sh
+            # Calculate diff
+            diff = 0
 
-        # Save
-        self._save_config(self._config, self._config_path)
+            # Update if changed
+            if self._player_diff != diff:
+                self._player_diff = diff
+                self._player_send(f'%diff={self._player_diff}')
 
-        # Render if needed
-        if render and not self._cloud_job_id:
-            self._render()
+            # Save if there were changes
+            self._save_config(self._config, self._config_path)
+
+            # Render if another render is not in progress
+            if not self._cloud_job_id:
+                self._render()
 
     #
     # File reader
@@ -520,7 +595,7 @@ class CloudReader:
                         and 'genre' in query['format']['tags']
                     ):
                         if m := CloudReader.REGEX_GENRE.search(query['format']['tags']['genre']):
-                            filename = f"{m.group('q').upper()}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
+                            filename = f"{m.group('q').upper()}_x{m.group('x')}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
                             self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                             f.rename(f.parent / filename)
 
