@@ -468,6 +468,7 @@ class CloudGrid:
 
     def _cmd_ping(self, addr):
 #        self._print(f'@ping: {addr}')
+        time.sleep(self._get_scattered_update_freq())
         return f'/pong {self._id}'
 
     def _cmd_play(self, addr):
