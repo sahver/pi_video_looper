@@ -44,6 +44,7 @@ class CloudGrid:
         self._dispatcher = Dispatcher()
 
         self._dispatcher.map(f'/connect', self._cmd_connect)
+        self._dispatcher.map(f'/ping', self._cmd_ping)
         self._dispatcher.map(f'/pull', self._cmd_pull)
         self._dispatcher.map(f'/purge', self._cmd_purge)
         self._dispatcher.map(f'/reboot', self._cmd_reboot)
@@ -51,6 +52,7 @@ class CloudGrid:
         
         self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
         self._dispatcher.map(f'/{self._id}/pause', self._cmd_pause)
+        self._dispatcher.map(f'/{self._id}/ping', self._cmd_ping)
         self._dispatcher.map(f'/{self._id}/play', self._cmd_play)
         self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
@@ -463,6 +465,10 @@ class CloudGrid:
     def _cmd_pause(self, addr):
         self._print(f'@pause: {addr}')
         self._player_send(f'%pause')
+
+    def _cmd_ping(self, addr):
+#        self._print(f'@ping: {addr}')
+        return f'/pong {self._id}'
 
     def _cmd_play(self, addr):
         self._print(f'@play: {addr}')
