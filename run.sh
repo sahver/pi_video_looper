@@ -49,6 +49,9 @@ else
 	tmux send -t $session 'echo' ENTER
 	tmux send -t $session 'echo "*** Uuendame koodi.. ***"' ENTER
 	tmux send -t $session 'echo' ENTER
+	tmux send -t $session 'cd ~/omxplayer-sync' ENTER
+	tmux send -t $session 'git pull' ENTER
+	tmux send -t $session 'cd ~/pi_video_looper' ENTER
 	tmux send -t $session 'git pull' ENTER
 	tmux send -t $session 'fi' ENTER
 
