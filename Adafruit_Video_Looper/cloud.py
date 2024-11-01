@@ -289,7 +289,7 @@ class CloudGrid:
 
     def _display_cache(self):
         # bg
-        self._display.fill((255, 255, 255))
+        self._display.fill((255, 255, 0))
 
         # show
         pygame.display.update()
