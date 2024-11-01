@@ -16,13 +16,14 @@ import threading
 import time
 
 from datetime import datetime
+from hashlib import blake2s
 from pathlib import Path
 from pythonosc.dispatcher import Dispatcher
 from pythonosc import osc_server, udp_client
 
 class CloudGrid:
 
-    REGEX_GENRE = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+)$')
+    REGEX_PARAMETERS = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+)$')
 
     def __init__(self, config_parent, config_path='/boot/video_cloud.ini'):
         """Create an instance of a file reader that renders needed videos in the cloud."""
@@ -212,10 +213,7 @@ class CloudGrid:
     def _render(self):
         self._print(f'@render')
 
-        # Reset and start cloud render
-        self._cloud_job_id = None
-
-        # Wait for response
+        # Process in Cloud
         if reply := self._cloud_wait_for_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._screen_w, self._screen_h, self._quality]):
 
             # Something will change, so be ready
@@ -225,10 +223,9 @@ class CloudGrid:
             self._print(f'{reply}')
             key, val = reply.split('=', 1)
 
-            # Already exists in the cloud
+            # Already cached in the cloud
             if key == 'cached':
-                self._display_download(val, use_cache=True)
-                return
+                return self._display_download(val)
 
             #
             # Lesgo!
@@ -253,8 +250,8 @@ class CloudGrid:
                         if len(val) == 0:
                             self._print(f'{self._cloud_job_id}: not in queue, stopping.')
                             self._cloud_job_id = None
-                            self._display_blank()
-                            break
+                            self._display_error('not in queue')
+                            return False
                         else:
                             self._display_queue( int(val) )
 
@@ -268,19 +265,10 @@ class CloudGrid:
 
                     # Download
                     elif key == 'ready':
-
-                        # Download
-                        self._display_download(val)
-
-                        # Job done.
-                        self._cloud_job_id = None
-                        break
+                        return self._display_download(val)
 
                 # Pause
                 time.sleep(self._get_scattered_update_freq())
-
-        # Confirm
-        self._print('@render done.')
 
     #
     # UI
@@ -299,78 +287,76 @@ class CloudGrid:
         # show
         pygame.display.update()
 
-    def _display_download(self, file, use_cache = False):
+    def _display_cache(self):
+        # bg
+        self._display.fill((255, 255, 255))
+
+        # show
+        pygame.display.update()
+
+    def _display_download(self, file):
 
         # Save to
         out = Path(self._path) / file
         out = out.with_suffix(out.suffix + '.hidden')
 
-        # Do we have it already?
-        if use_cache and out.exists():
-            # bg
-            self._display.fill((255, 255, 255))
-            pygame.display.update()
-            # Use cache
-            self._print(f'Locally cached, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
-            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
+        # bg
+        self._display.fill((0, 255, 0))
+        pygame.display.update()
 
-        # If not, then download
-        else:
+        # Save from
+        url = f'http://{self._cloud_host}:{self._cloud_port-1}/{file}'
 
-            # bg
-            self._display.fill((0, 255, 0))
-            pygame.display.update()
+        # Create dirs if needed
+        out.parent.mkdir(parents=True, exist_ok=True)
 
-            # Save from
-            url = f'http://{self._cloud_host}:{self._cloud_port-1}/{file}'
+        # Start download
+        self._print(f'Downloading {url} ..')
+        with open(out, 'wb') as f:
+            with requests.get(url, stream=True) as r:
+                r.raise_for_status()
+                block_size = 1024
+                file_size = int(r.headers.get('content-length', None))
+                now = then = datetime.now().timestamp()
+                for i, chunk in enumerate(r.iter_content(chunk_size=block_size)):
+                    f.write(chunk)
 
-            # Create dirs if needed
-            out.parent.mkdir(parents=True, exist_ok=True)
+                    now = datetime.now().timestamp()
 
-            # Start download
-            self._print(f'Downloading {url} ..')
-            with open(out, 'wb') as f:
-                with requests.get(url, stream=True) as r:
-                    r.raise_for_status()
-                    block_size = 1024
-                    file_size = int(r.headers.get('content-length', None))
-                    now = then = datetime.now().timestamp()
-                    for i, chunk in enumerate(r.iter_content(chunk_size=block_size)):
-                        f.write(chunk)
+                    if (now - then) > self._get_scattered_update_freq():
 
-                        now = datetime.now().timestamp()
+                        then = now
 
-                        if (now - then) > self._get_scattered_update_freq(): 
+                        # Clamp to 100%
+                        pos = min( (i * block_size)/file_size, 1 )
+                        self._print(f'{file}: {int(pos*100)}%')
 
-                            then = now
+                        # bg
+                        self._display.fill((0, 255, 0))
 
-                            # Clamp to 100%
-                            pos = min( (i * block_size)/file_size, 1 )
-                            self._print(f'{file}: {int(pos*100)}%')
+                        # progress
+                        if pos > 0:
+                            pygame.draw.rect(
+                                self._display,
+                                (0, 0, 0),
+                                pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
+                            )
 
-                            # bg
-                            self._display.fill((0, 255, 0))
+                        # %
+                        label = self._font_big.render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
+                        lw, lh = label.get_size()
+                        self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
 
-                            # progress
-                            if pos > 0:
-                                pygame.draw.rect(
-                                    self._display,
-                                    (0, 0, 0),
-                                    pygame.Rect(int((1-pos) * pygame.display.Info().current_w), 0, pygame.display.Info().current_w, pygame.display.Info().current_h)
-                                )
+                        # show
+                        pygame.display.update()
 
-                            # %
-                            label = self._font_big.render(f'{(pos*100):3.0f}%', True, (0, 0, 0))
-                            lw, lh = label.get_size()
-                            self._display.blit(label, (self._display_w/2-lw/2, self._display_h/2-lh/2))
-                            
-                            # show
-                            pygame.display.update()
+        # Download done.
+        self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+        out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
+        self._print(f'✓')
 
-            # Download done.
-            self._print(f'Complete, renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
-            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
-            self._print(f'✓')
+        # Download successful
+        return True
 
     def _display_error(self, msg):
 
@@ -454,6 +440,7 @@ class CloudGrid:
             self._cloud_host = host
             self._cloud_port = port
             self._save_config(self._config, self._config_path)
+
             # Connect
             self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
             self._print('Connecting to cloud at {}:{}'.format(self._cloud_host, self._cloud_port))
@@ -528,30 +515,56 @@ class CloudGrid:
             or self._quality != q
             or self._screen_w != sw
             or self._screen_h != sh
-        ): 
-            # Update
-            self._crop_w = w
-            self._crop_h = h
-            self._crop_x = x
-            self._crop_y = y
-            self._quality = q
-            self._screen_w = sw
-            self._screen_h = sh
+        ):
+            update = False
 
-            # Calculate diff
-            diff = 0
+            #
+            # Get it from cache or render new
+            #
 
-            # Update if changed
-            if self._player_diff != diff:
-                self._player_diff = diff
+            # Use locally cached version if available
+            if cached := self._is_cached(x, y, w, h, sw, sh, q):
+                self._display_cache()
+                self._hide_files(change_to=cached)
+                update = True
+
+            # If not in cache, then process if another job is not in progress
+            elif not self._cloud_job_id:
+
+                # Render successful!
+                if self._render():
+                    self._print(f'{self._cloud_job_id}: done.')
+                    self._cloud_job_id = None
+                    update = True
+
+            # Job in progress
+            else: self._print(f'{self._cloud_job_id}: already in progress.')
+
+            #
+            # Save new configuration
+            #
+
+            # Everything OK?
+            if update:
+
+                # Parameters
+                self._crop_w = w
+                self._crop_h = h
+                self._crop_x = x
+                self._crop_y = y
+                self._quality = q
+                self._screen_w = sw
+                self._screen_h = sh
+
+                # Calculate diff
+                self._player_diff = 0
                 self._player_send(f'%diff={self._player_diff}')
 
-            # Save if there were changes
-            self._save_config(self._config, self._config_path)
+                # Save
+                self._save_config(self._config, self._config_path)
 
-            # Render if another render is not in progress
-            if not self._cloud_job_id:
-                self._render()
+        # No changes to current configuration
+        else: self._print('No changes to configuration, do nothing.')
 
     #
     # File reader
@@ -559,13 +572,11 @@ class CloudGrid:
 
     def search_paths(self):
         """Return a list of paths to search for files."""
-#        print('** search_paths()')
         return [self._path]
 
     def is_changed(self):
         """Return true if the number of files in the paths have changed."""
         current_count = self.count_files()
-#        print(f'** is_changed(): current={current_count} filecount={self._filecount} path={self._path}')
         if current_count != self._filecount:
             self._filecount = current_count
             return True
@@ -574,23 +585,19 @@ class CloudGrid:
 
     def idle_message(self):
         """Return a message to display when idle and no files are found."""
-#        print('** idle_message()')
         return f'{self._id}'
 
     def count_files(self):
-#        print('** count_files()')
-#        print( sorted(filter(lambda path: path.suffix.lower()[1:] in self._extensions, Path(self._path).glob('*'))) )
         return len( sorted(filter(lambda path: path.suffix.lower()[1:] in self._extensions, Path(self._path).glob('*'))) )
 
     #
     # Utils
     #
 
-    def _hide_files(self):
+    def _hide_files(self, change_to=None):
         # Hide known files
         for ext in self._extensions:
             for f in Path(self._path).glob(f'**/*.{ext}'):
-
                 try:
                     # Get details
                     query = ffmpeg.probe(f.as_posix())
@@ -599,16 +606,16 @@ class CloudGrid:
                     if (
                         'format' in query
                         and 'tags' in query['format']
-                        and 'genre' in query['format']['tags']
+                        and 'render' in query['format']['tags']
                     ):
-                        if m := CloudGrid.REGEX_GENRE.search(query['format']['tags']['genre']):
+                        if m := CloudGrid.REGEX_PARAMETERS.search(query['format']['tags']['render']):
                             filename = f"{m.group('q').upper()}_x{m.group('x')}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
                             self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                             f.rename(f.parent / filename)
 
                     # Delete if required metadata is missing
                     else:
-                        self._print(f'Required metadata not found in {f.as_posix()}, deleting.')
+                        self._print(f'Required metadata (render) not found in {f.as_posix()}, deleting.')
                         f.unlink()
                 
                 # Problem with the file probably
@@ -616,8 +623,59 @@ class CloudGrid:
                     self._print(f'Unable to probe {f.as_posix()}, deleting.')
                     f.unlink()
 
+        # If specified, change to
+        if change_to:
+            out = Path(self._path) / change_to
+            self._print(f'Renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
+            out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
+
         # Allow some time for changes to be discovered
-        time.sleep(1)
+        time.sleep(0.5)
+
+    def _is_cached(self, x, y, w, h, sw, sh, q):
+        # Hash of parameters to identify files
+        hash = blake2s(f'{x} {y} {w} {h} {sw} {sh} {q}'.encode()).hexdigest()
+        # Loop through to find a match
+        for f in Path(self._path).iterdir():
+            if (
+                f.is_file()
+                and (
+                    f.suffix == '.hidden'
+                    or
+                    f.suffix[1:] in self._extensions
+                )
+            ):
+
+
+                try:
+                    # Get details
+                    query = ffmpeg.probe(f.as_posix())
+
+                    # Find hash
+                    if (
+                        'format' in query
+                        and 'tags' in query['format']
+                        and 'hash' in query['format']['tags']
+                    ):
+
+                        # Found it!
+                        if hash == query['format']['tags']['hash']:
+                            self._print(f'Found in cache, {hash} -> {f.as_posix()}')
+                            return f.name
+
+                    # Delete if required metadata is missing
+                    else:
+                        self._print(f'Required metadata (hash) not found in {f.as_posix()}, deleting.')
+                        f.unlink()
+
+                # Problem with the file probably
+                except ffmpeg._run.Error:
+                    self._print(f'Unable to probe {f.as_posix()}, deleting.')
+                    f.unlink()
+
+        # No match found
+        self._print(f'Not found in cache, {hash}')
+        return None
 
     def _print(self, message=None, end='\n'):
         if self._console_output:
@@ -630,4 +688,3 @@ class CloudGrid:
 def create_file_reader(config, screen):
     """Create new file reader based on reading a directory on disk."""
     return CloudGrid(config)
-
