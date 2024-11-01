@@ -210,11 +210,11 @@ class CloudGrid:
     # ** RENDERING **
     #
 
-    def _render(self):
-        self._print(f'@render')
+    def _render(self, x, y, w, h, sw, sh, q):
+        self._print(f'@render: {x} {y} {w} {h} {sw} {sh} {q}')
 
         # Process in Cloud
-        if reply := self._cloud_wait_for_reply('/queue', [self._id, self._crop_x, self._crop_y, self._crop_w, self._crop_h, self._screen_w, self._screen_h, self._quality]):
+        if reply := self._cloud_wait_for_reply('/queue', [self._id, x, y, w, h, sw, sh, q]):
 
             # Something will change, so be ready
             self._hide_files()
@@ -532,7 +532,7 @@ class CloudGrid:
             elif not self._cloud_job_id:
 
                 # Render successful!
-                if self._render():
+                if self._render(x, y, w, h, sw, sh, q):
                     self._print(f'{self._cloud_job_id}: done.')
                     self._cloud_job_id = None
                     update = True
