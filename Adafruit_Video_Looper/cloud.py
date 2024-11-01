@@ -558,10 +558,13 @@ class CloudGrid:
 
                 # Calculate diff
                 self._player_diff = 0
-                self._player_send(f'%diff={self._player_diff}')
 
                 # Save
                 self._save_config(self._config, self._config_path)
+
+                # Update player
+                self._player_send(f'%diff={self._player_diff}')
+
 
         # No changes to current configuration
         else: self._print('No changes to configuration, do nothing.')
