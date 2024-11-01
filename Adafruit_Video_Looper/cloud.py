@@ -628,12 +628,14 @@ class CloudGrid:
 
         # If specified, change to
         if change_to:
+
+            # Allow some time for changes to be discovered
+            time.sleep(1)
+
+            # Then rename
             out = Path(self._path) / change_to
             self._print(f'Renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
             out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
-
-        # Allow some time for changes to be discovered
-        time.sleep(1)
 
     def _is_cached(self, x, y, w, h, sw, sh, q):
         # Hash of parameters to identify files
