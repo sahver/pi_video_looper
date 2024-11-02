@@ -199,6 +199,7 @@ class CloudGrid:
         return str(reply).strip() if reply else None
 
     def _player_connect(self):
+        self._print('Connecting to player at {}:{}'.format('127.0.0.1', self._player_port))
         self._player = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
         self._player.connect(('127.0.0.1', self._player_port))
 
@@ -206,6 +207,7 @@ class CloudGrid:
         # Retry a few times
         for i in range(5):
             try:
+                self._player.sendall(('%hello').encode('utf-8'))
                 self._player.sendall((msg).encode('utf-8'))
                 # All good
                 break
@@ -214,6 +216,7 @@ class CloudGrid:
                 self._print(f'_player_send(): {err}')
                 self._display_error(err)
                 time.sleep(self._get_scattered_update_freq())
+                self._player_connect()
 
     def _get_scattered_update_freq(self):
         return (self._cloud_update_freq*0.9) + ( (self._cloud_update_freq*0.2) * random.random() )
