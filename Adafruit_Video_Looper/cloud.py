@@ -45,6 +45,7 @@ class CloudGrid:
         self._dispatcher = Dispatcher()
 
         self._dispatcher.map(f'/connect', self._cmd_connect)
+        self._dispatcher.map(f'/delete', self._cmd_delete)
         self._dispatcher.map(f'/pause', self._cmd_pause)
         self._dispatcher.map(f'/ping', self._cmd_ping)
         self._dispatcher.map(f'/play', self._cmd_play)
@@ -53,6 +54,7 @@ class CloudGrid:
         self._dispatcher.map(f'/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/quit', self._cmd_quit)
         
+        self._dispatcher.map(f'/{self._id}/delete', self._cmd_delete)
         self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
         self._dispatcher.map(f'/{self._id}/ping', self._cmd_ping)
         self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
@@ -444,6 +446,17 @@ class CloudGrid:
             # Connect
             self._cloud = udp_client.SimpleUDPClient(self._cloud_host, self._cloud_port)
             self._print('Connecting to cloud at {}:{}'.format(self._cloud_host, self._cloud_port))
+
+    def _cmd_delete(self, addr):
+        self._print(f'@delete: {addr}')
+
+        # Current video
+        out = Path(self._path) / f'{type(self).__name__}.mp4'
+
+        # Delete if exists
+        if out.exists():
+            self._print(f'Deleting {out.as_posix()} ..')
+            out.unlink()
 
     def _cmd_diff(self, addr, diff):
         self._print(f'@diff: {addr} {diff}')
