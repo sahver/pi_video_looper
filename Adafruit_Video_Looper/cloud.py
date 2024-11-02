@@ -188,7 +188,7 @@ class CloudGrid:
             except socket.timeout as err:
                 # No answer yet
                 if not reply:
-                    self._print(f'Error: {err}')
+                    self._print(f'_cloud_wait_for_reply(): {err}')
                     self._display_error(err)
                     time.sleep(self._get_scattered_update_freq())
                 # We have an answer,
@@ -203,7 +203,17 @@ class CloudGrid:
         self._player.connect(('127.0.0.1', self._player_port))
 
     def _player_send(self, msg):
-        self._player.sendall((msg).encode('utf-8'))
+        # Retry a few times
+        for i in range(5):
+            try:
+                self._player.sendall((msg).encode('utf-8'))
+                # All good
+                break
+            # Probably server not up yet, retry
+            except ConnectionRefusedError as err:
+                self._print(f'_player_send(): {err}')
+                self._display_error(err)
+                time.sleep(self._get_scattered_update_freq())
 
     def _get_scattered_update_freq(self):
         return (self._cloud_update_freq*0.9) + ( (self._cloud_update_freq*0.2) * random.random() )
