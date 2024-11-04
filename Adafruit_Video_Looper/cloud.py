@@ -70,10 +70,6 @@ class CloudGrid:
         self._cloud_job_id = None
         self._cloud_update_freq = 0.5
 
-        # Player
-        self._player = None
-        self._player_connect()
-
         # Router
         self._router = None
         self._router_listen()
@@ -83,6 +79,9 @@ class CloudGrid:
         self._display_w, self._display_h = self._display.get_size()
         self._font_huge = pygame.font.Font(None, 500)
         self._font_big = pygame.font.Font(None, 250)
+
+        # Initialize player
+#        self._player_send(f'%diff={self._player_diff}')
 
 
     def _load_config(self, config_path, config_parent):
@@ -198,25 +197,40 @@ class CloudGrid:
         # Nonii
         return str(reply).strip() if reply else None
 
-    def _player_connect(self):
-        self._print('Connecting to player at {}:{}'.format('127.0.0.1', self._player_port))
-        self._player = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
-        self._player.connect(('127.0.0.1', self._player_port))
-
     def _player_send(self, msg):
+
+        player = None
+        success = False
+
         # Retry a few times
         for i in range(5):
             try:
-                self._player.sendall(('%hello').encode('utf-8'))
-                self._player.sendall((msg).encode('utf-8'))
+                # Connect
+#                self._print('Connecting to player at {}:{} ({})'.format('127.0.0.1', self._player_port, i))
+                player = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
+                player.settimeout(5)
+                player.connect(('127.0.0.1', self._player_port))
+                # Send
+                player.sendall((msg).encode('utf-8'))
+                # Wait for confirmation
+                r = player.recvfrom(1024)
+#                self._print(r[0].decode('utf-8'))
                 # All good
-                break
+                if r[0].decode('utf-8') == f'OK {msg}':
+                    success = True
             # Probably server not up yet, retry
             except ConnectionRefusedError as err:
-                self._print(f'_player_send(): {err}')
-                self._display_error(err)
-                time.sleep(self._get_scattered_update_freq())
-                self._player_connect()
+#                self._print(f'_player_send(): {err}')
+                time.sleep(3)
+            finally:
+                player.close()
+
+            # If we succeeded then no more retries needed
+            if success: break
+
+        # Show error if all retries failed
+        if not success:
+            raise Exception(f'Unable to send data ({msg}) to omxplayer')
 
     def _get_scattered_update_freq(self):
         return (self._cloud_update_freq*0.9) + ( (self._cloud_update_freq*0.2) * random.random() )
