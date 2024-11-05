@@ -81,8 +81,7 @@ class CloudGrid:
         self._font_big = pygame.font.Font(None, 250)
 
         # Initialize player
-#        self._player_send(f'%diff={self._player_diff}')
-
+        threading.Thread(target=self._player_send, args=[f'%diff={self._player_diff}']).start()
 
     def _load_config(self, config_path, config_parent):
 
@@ -166,8 +165,7 @@ class CloudGrid:
 
         # Connect
         self._router = osc_server.ThreadingOSCUDPServer((self._router_host, self._router_port), self._dispatcher)
-        thread = threading.Thread(target=self._router.serve_forever)
-        thread.start()
+        threading.Thread(target=self._router.serve_forever).start()
         self._print('Router listening at {}:{}'.format(self._router_host, self._router_port))
 
     def _cloud_wait_for_reply(self, addr, args):
@@ -208,7 +206,7 @@ class CloudGrid:
                 # Connect
 #                self._print('Connecting to player at {}:{} ({})'.format('127.0.0.1', self._player_port, i))
                 player = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, 0)
-                player.settimeout(5)
+                player.settimeout(3)
                 player.connect(('127.0.0.1', self._player_port))
                 # Send
                 player.sendall((msg).encode('utf-8'))
