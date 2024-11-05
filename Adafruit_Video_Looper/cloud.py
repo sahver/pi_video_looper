@@ -53,6 +53,7 @@ class CloudGrid:
         self._dispatcher.map(f'/purge', self._cmd_purge)
         self._dispatcher.map(f'/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/quit', self._cmd_quit)
+        self._dispatcher.map(f'/setup', self._cmd_setup)
         
         self._dispatcher.map(f'/{self._id}/delete', self._cmd_delete)
         self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
@@ -113,6 +114,10 @@ class CloudGrid:
         self._screen_w = config.getint('screen', 'width')
         self._screen_h = config.getint('screen', 'height')
 
+        # Video
+        self._video_length = config.getint('video', 'length')
+        self._video_speed = config.getfloat('video', 'speed')
+
         return config
 
     def _save_config(self, config, config_path):
@@ -151,11 +156,21 @@ class CloudGrid:
             'height'        : self._screen_h,
         }
 
+        # Video
+        config['video'] = {
+            'length'        : self._video_length,
+            'speed'         : self._video_speed,
+        }
+
         # Save
         with open(config_path, 'w') as cfg:
             config.write(cfg)
 
         self._print(f'Cloud configuration saved to {config_path}')
+
+    def _calc_diff(self):
+        self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed} .. pos={self._video_length - (self._video_length * self._crop_y)}')
+        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed
 
     def _router_listen(self):
         # If already connected, shutdown first
@@ -540,6 +555,21 @@ class CloudGrid:
         # Quit
         self._cmd_quit(addr)
 
+    def _cmd_setup(self, addr, speed, length):
+        self._print(f'@setup: {addr} {speed} {length}')
+
+        self._video_length = length
+        self._video_speed = speed
+
+        # Calculate diff
+        self._player_diff = self._calc_diff()
+
+        # Save
+        self._save_config(self._config, self._config_path)
+
+        # Update
+        self._player_send(f'%diff={self._player_diff}')
+
     def _cmd_update(self, addr, x, y, w, h, sw, sh, q):
         self._print(f'@update: {addr} {x} {y} {w} {h} {sw} {sh} {q}')
 
@@ -595,14 +625,13 @@ class CloudGrid:
                 self._screen_h = sh
 
                 # Calculate diff
-                self._player_diff = 0
+                self._player_diff = self._calc_diff()
 
                 # Save
                 self._save_config(self._config, self._config_path)
 
-                # Update player
+                # Update
                 self._player_send(f'%diff={self._player_diff}')
-
 
         # No changes to current configuration
         else: self._print('No changes to configuration, do nothing.')
