@@ -169,8 +169,8 @@ class CloudGrid:
         self._print(f'Cloud configuration saved to {config_path}')
 
     def _calc_diff(self):
-        self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed} .. pos={(self._video_length - (self._video_length * (self._crop_y + self._crop_h))) * self._video_speed}')
-        return (self._video_length - (self._video_length * (self._crop_y + self._crop_h))) / self._video_speed
+        self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed} .. pos={(self._video_length - (self._video_length * self._crop_h)) / self._video_speed}')
+        return (self._video_length - (self._video_length * self._crop_h)) / self._video_speed
 
     def _router_listen(self):
         # If already connected, shutdown first
