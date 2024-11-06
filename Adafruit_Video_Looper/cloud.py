@@ -680,7 +680,7 @@ class CloudGrid:
                         and 'render' in query['format']['tags']
                     ):
                         if m := CloudGrid.REGEX_PARAMETERS.search(query['format']['tags']['render']):
-                            filename = f"{m.group('q').upper()}_x{m.group('x')}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
+                            filename = f"{m.group('q').upper()}_{self._id:02}_x{m.group('x')}_y{m.group('y')}_w{m.group('w')}_h{m.group('h')}_{m.group('sw')}x{m.group('sh')}{f.suffix}.hidden"
                             self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                             f.rename(f.parent / filename)
 
