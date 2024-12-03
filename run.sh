@@ -69,6 +69,17 @@ else
 
 	tmux send -t $session '' ENTER
 
+	tmux send -t $session 'CMD=.cloud.shutdown' ENTER
+	tmux send -t $session 'if test -f "$CMD"' ENTER
+	tmux send -t $session 'then' ENTER
+	tmux send -t $session 'sudo rm "$CMD"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session 'echo "*** Lülitame välja arvuti.. ***"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session 'sudo /usr/sbin/shutdown' ENTER
+	tmux send -t $session 'fi' ENTER
+
+	tmux send -t $session '' ENTER
 
 	tmux send -t $session 'echo' ENTER
 	tmux send -t $session 'echo "*** Käivitame looperi.. ***"' ENTER
