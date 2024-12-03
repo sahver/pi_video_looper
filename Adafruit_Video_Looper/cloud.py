@@ -54,7 +54,7 @@ class CloudGrid:
         self._dispatcher.map(f'/reboot', self._cmd_reboot)
         self._dispatcher.map(f'/quit', self._cmd_quit)
         self._dispatcher.map(f'/setup', self._cmd_setup)
-        self._dispatcher.map(f'/shutdown', self._cmd_shutdown)
+        self._dispatcher.map(f'/poweroff', self._cmd_poweroff)
         
         self._dispatcher.map(f'/{self._id}/delete', self._cmd_delete)
         self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
@@ -63,7 +63,7 @@ class CloudGrid:
         self._dispatcher.map(f'/{self._id}/purge', self._cmd_purge)
         self._dispatcher.map(f'/{self._id}/quit', self._cmd_quit)
         self._dispatcher.map(f'/{self._id}/reboot', self._cmd_reboot)
-        self._dispatcher.map(f'/{self._id}/shutdown', self._cmd_shutdown)
+        self._dispatcher.map(f'/{self._id}/poweroff', self._cmd_poweroff)
         self._dispatcher.map(f'/{self._id}/update', self._cmd_update)
         
 #        self._dispatcher.set_default_handler(self._cmd_print)
@@ -558,11 +558,11 @@ class CloudGrid:
         # Quit
         self._cmd_quit(addr)
 
-    def _cmd_shutdown(self, addr):
-        self._print(f'@shutdown: {addr}')
+    def _cmd_poweroff(self, addr):
+        self._print(f'@poweroff: {addr}')
 
         # Task
-        out = Path.cwd() / '.cloud.shutdown'
+        out = Path.cwd() / '.cloud.poweroff'
         out.write_text(str(datetime.now()))
 
         # Quit
