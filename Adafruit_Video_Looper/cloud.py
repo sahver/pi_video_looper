@@ -175,9 +175,19 @@ class CloudGrid:
         self._print(f'Cloud configuration saved to {config_path}')
 
     def _calc_diff(self):
-        self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed}')
-        self._print(f'_calc_diff(): ({self._video_length} - ({self._video_length} * {self._crop_y})) / {self._video_speed} = {(self._video_length - (self._video_length * self._crop_y)) / self._video_speed}')
-        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed
+#        self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed}')
+#        self._print(f'_calc_diff(): ({self._video_length} - ({self._video_length} * {self._crop_y})) / {self._video_speed} = {(self._video_length - (self._video_length * self._crop_y)) / self._video_speed}')
+#        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed
+
+        #
+        # HAAPSALU
+        #
+
+        return _player_diff
+
+        #
+        # END HAAPSALU
+        #
 
     def _router_listen(self):
         # If already connected, shutdown first
@@ -507,7 +517,25 @@ class CloudGrid:
 
     def _cmd_diff(self, addr, diff):
         self._print(f'@diff: {addr} {diff}')
-        self._player_send(f'%diff={diff}')
+#        self._player_send(f'%diff={diff}')
+
+        #
+        # HAAPSALU
+        #
+
+        # Use it!
+        self._player_diff = diff
+
+        # Save
+        self._save_config(self._config, self._config_path)
+
+        # Update
+        self._player_send(f'%diff={self._player_diff}')
+
+        #
+        # END HAAPSALU
+        #
+
 
     def _cmd_hide(self, addr):
         self._print(f'@hide: {addr}')
