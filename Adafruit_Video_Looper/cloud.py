@@ -23,7 +23,7 @@ from pythonosc import osc_server, udp_client
 
 class CloudGrid:
 
-    REGEX_PARAMETERS = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+)$')
+    REGEX_PARAMETERS = re.compile(r'^q=(?P<q>.+):x=(?P<x>\d+):y=(?P<y>\d+):w=(?P<w>\d+):h=(?P<h>\d+):r=(?P<sw>\d+)x(?P<sh>\d+):f=(?P<flip>\d+)$')
 
     def __init__(self, config_parent, config_path='/boot/video_cloud.ini'):
         """Create an instance of a file reader that renders needed videos in the cloud."""
@@ -103,7 +103,6 @@ class CloudGrid:
         self._crop_y = config.getfloat('crop', 'y')
         self._crop_w = config.getfloat('crop', 'width')
         self._crop_h = config.getfloat('crop', 'height')
-        self._crop_flip = config.getboolean('crop', 'flip', fallback=0)
         self._quality = config.get('crop', 'quality')
 
         # Player
@@ -118,6 +117,7 @@ class CloudGrid:
         self._id = config.getint('screen', 'id')
         self._screen_w = config.getint('screen', 'width')
         self._screen_h = config.getint('screen', 'height')
+        self._screen_flip = config.getboolean('screen', 'flip', fallback=0)
 
         # Video
         self._video_length = config.getint('video', 'length')
@@ -139,7 +139,6 @@ class CloudGrid:
             'y'             : self._crop_y,
             'width'         : self._crop_w,
             'height'        : self._crop_h,
-            'flip'          : self._crop_flip,
             'quality'       : self._quality,
         }
 
@@ -160,6 +159,7 @@ class CloudGrid:
             'id'            : self._id,
             'width'         : self._screen_w,
             'height'        : self._screen_h,
+            'flip'          : self._screen_flip,
         }
 
         # Video
@@ -259,11 +259,11 @@ class CloudGrid:
     # ** RENDERING **
     #
 
-    def _render(self, x, y, w, h, flip, sw, sh, q):
-        self._print(f'@render: {x} {y} {w} {h} {flip} {sw} {sh} {q}')
+    def _render(self, x, y, w, h, sw, sh, flip, q):
+        self._print(f'@render: {x} {y} {w} {h} {sw} {sh} {flip} {q}')
 
         # Process in Cloud
-        if reply := self._cloud_wait_for_reply('/queue', [self._id, x, y, w, h, flip, sw, sh, q]):
+        if reply := self._cloud_wait_for_reply('/queue', [self._id, x, y, w, h, sw, sh, flip, q]):
 
             # Something will change, so be ready
             self._hide_files()
@@ -591,8 +591,8 @@ class CloudGrid:
         # Update
         self._player_send(f'%diff={self._player_diff}')
 
-    def _cmd_update(self, addr, x, y, w, h, flip, sw, sh, q):
-        self._print(f'@update: {addr} {x} {y} {w} {h} {flip} {sw} {sh} {q}')
+    def _cmd_update(self, addr, x, y, w, h, sw, sh, flip, q):
+        self._print(f'@update: {addr} {x} {y} {w} {h} {sw} {sh} {flip} {q}')
 
         # Are there any changes?
         if (
@@ -601,10 +601,10 @@ class CloudGrid:
             or self._crop_h != h
             or self._crop_x != x
             or self._crop_y != y
-            or self._crop_flip != flip
             or self._quality != q
             or self._screen_w != sw
             or self._screen_h != sh
+            or self._screen_flip != flip
         ):
             update = False
 
@@ -613,7 +613,7 @@ class CloudGrid:
             #
 
             # Use locally cached version if available
-            if cached := self._is_cached(x, y, w, h, flip, sw, sh, q):
+            if cached := self._is_cached(x, y, w, h, sw, sh, flip, q):
                 self._display_cache()
                 self._hide_files(change_to=cached)
                 update = True
@@ -622,7 +622,7 @@ class CloudGrid:
             elif not self._cloud_job_id:
 
                 # Render successful!
-                if self._render(x, y, w, h, flip, sw, sh, q):
+                if self._render(x, y, w, h, sw, sh, flip, q):
                     self._print(f'{self._cloud_job_id}: done.')
                     self._cloud_job_id = None
                     update = True
@@ -642,10 +642,10 @@ class CloudGrid:
                 self._crop_h = h
                 self._crop_x = x
                 self._crop_y = y
-                self._crop_flip = flip
                 self._quality = q
                 self._screen_w = sw
                 self._screen_h = sh
+                self._screen_flip = flip
 
                 # Calculate diff
                 self._player_diff = self._calc_diff()
@@ -706,6 +706,11 @@ class CloudGrid:
                             self._print(f'Caching, renaming {f.as_posix()} -> {f.parent.as_posix()}/{filename} ..')
                             f.rename(f.parent / filename)
 
+                        # Delete if required metadata is missing
+                        else:
+                            self._print(f'Required metadata (render) not found in {f.as_posix()}, deleting.')
+                            f.unlink()
+
                     # Delete if required metadata is missing
                     else:
                         self._print(f'Required metadata (render) not found in {f.as_posix()}, deleting.')
@@ -727,9 +732,9 @@ class CloudGrid:
             self._print(f'Renaming {out.as_posix()} -> {out.parent}/{type(self).__name__}{out.with_suffix("").suffix} ..')
             out.rename(out.parent / f'{type(self).__name__}{out.with_suffix("").suffix}')
 
-    def _is_cached(self, x, y, w, h, flip, sw, sh, q):
+    def _is_cached(self, x, y, w, h, sw, sh, flip, q):
         # Hash of parameters to identify files
-        hash = blake2s(f'{x} {y} {w} {h} {flip} {sw} {sh} {q}'.encode()).hexdigest()
+        hash = blake2s(f'{x} {y} {w} {h} {sw} {sh} {flip} {q}'.encode()).hexdigest()
         # Loop through to find a match
         for f in Path(self._path).iterdir():
             if (
