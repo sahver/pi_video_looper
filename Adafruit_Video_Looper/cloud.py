@@ -46,6 +46,7 @@ class CloudGrid:
 
         self._dispatcher.map(f'/connect', self._cmd_connect)
         self._dispatcher.map(f'/delete', self._cmd_delete)
+        self._dispatcher.map(f'/display', self._cmd_display)
         self._dispatcher.map(f'/hide', self._cmd_hide)
         self._dispatcher.map(f'/pause', self._cmd_pause)
         self._dispatcher.map(f'/ping', self._cmd_ping)
@@ -59,6 +60,7 @@ class CloudGrid:
         
         self._dispatcher.map(f'/{self._id}/delete', self._cmd_delete)
         self._dispatcher.map(f'/{self._id}/diff', self._cmd_diff)
+        self._dispatcher.map(f'/{self._id}/display', self._cmd_display)
         self._dispatcher.map(f'/{self._id}/hide', self._cmd_hide)
         self._dispatcher.map(f'/{self._id}/ping', self._cmd_ping)
         self._dispatcher.map(f'/{self._id}/pull', self._cmd_pull)
@@ -525,6 +527,23 @@ class CloudGrid:
         #
         # END HAAPSALU
         #
+
+    def _cmd_display(self, addr, onoff):
+        self._print(f'@display: {addr} {onoff}')
+
+        # Off
+        if not onoff:
+            out = Path.cwd() / '.cloud.display.off'
+            out.write_text(str(datetime.now()))
+
+        # On
+        else:
+            out = Path.cwd() / '.cloud.display.on'
+            out.write_text(str(datetime.now()))
+
+        # Quit
+        self._cmd_quit(addr)
+
 
 
     def _cmd_hide(self, addr):

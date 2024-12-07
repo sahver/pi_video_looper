@@ -81,6 +81,30 @@ else
 
 	tmux send -t $session '' ENTER
 
+	tmux send -t $session 'CMD=.cloud.display.on' ENTER
+	tmux send -t $session 'if test -f "$CMD"' ENTER
+	tmux send -t $session 'then' ENTER
+	tmux send -t $session 'sudo rm "$CMD"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session 'echo "*** Lülitame ekraani sisse.. ***"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session '/usr/bin/vcgencmd display_power 1' ENTER
+	tmux send -t $session 'fi' ENTER
+
+	tmux send -t $session '' ENTER
+
+	tmux send -t $session 'CMD=.cloud.display.off' ENTER
+	tmux send -t $session 'if test -f "$CMD"' ENTER
+	tmux send -t $session 'then' ENTER
+	tmux send -t $session 'sudo rm "$CMD"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session 'echo "*** Lülitame ekraani välja.. ***"' ENTER
+	tmux send -t $session 'echo' ENTER
+	tmux send -t $session '/usr/bin/vcgencmd display_power 0' ENTER
+	tmux send -t $session 'fi' ENTER
+
+	tmux send -t $session '' ENTER
+
 	tmux send -t $session 'echo' ENTER
 	tmux send -t $session 'echo "*** Käivitame looperi.. ***"' ENTER
 	tmux send -t $session 'echo' ENTER
