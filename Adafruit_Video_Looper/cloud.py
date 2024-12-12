@@ -180,7 +180,7 @@ class CloudGrid:
         self._print(f'_calc_diff(): y={self._crop_y} len={self._video_length} speed={self._video_speed}')
         self._print(f'_calc_diff(): ({self._video_length} - ({self._video_length} * {self._crop_y})) / {self._video_speed} = {(self._video_length - (self._video_length * self._crop_y)) / self._video_speed}')
 #        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed
-        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed - 26.208332843250698 # HAAPSALU
+        return (self._video_length - (self._video_length * self._crop_y)) / self._video_speed - 33.69642794132233 # HAAPSALU, SPEED=28
     def _router_listen(self):
         # If already connected, shutdown first
         if self._router:
