@@ -380,7 +380,7 @@ class VideoLooper:
         if not self._osd:
             return
         # Display idle message in center of screen.
-        label = self._render_text(message, self._huge_font)
+        label = self._render_text(message)
         lw, lh = label.get_size()
         sw, sh = self._screen.get_size()
         self._screen.fill(self._bgcolor)

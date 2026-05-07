@@ -109,17 +109,17 @@ else
 	tmux send -t $session 'echo "*** Käivitame looperi.. ***"' ENTER
 	tmux send -t $session 'echo' ENTER
 	tmux send -t $session 'sudo python3 -u -m Adafruit_Video_Looper.video_looper' ENTER
-	
+
 	tmux send -t $session '' ENTER
-	
+
 	tmux send -t $session 'echo' ENTER
 	tmux send -t $session 'echo "***********************"' ENTER
 	tmux send -t $session 'echo' ENTER
 
 	tmux send -t $session '' ENTER
-	
+
 	tmux send -t $session 'done' ENTER
-	
+
 	echo 'Videomängija käivitatud..'
 fi
 
